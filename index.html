@@ -1,0 +1,1452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>⚡ Electrical Sales Scorecard</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    :root {
+      --bg:#efefed; --card:#fcfcfb; --card2:#f4f4f2; --card3:#eeeeed;
+      --border:#e1e0d9; --border2:#d0cfca;
+      --ink:#0b0b0b; --ink2:#52514e; --muted:#898781;
+      --griffin:#2a78d6; --griffin-lt:rgba(42,120,214,.09); --griffin-glow:rgba(42,120,214,.18);
+      --brice:#eb6834;   --brice-lt:rgba(235,104,52,.09);  --brice-glow:rgba(235,104,52,.18);
+      --proj:#1baf7a;    --proj-lt:rgba(27,175,122,.09);
+      --good:#006300;    --goodbg:#e4f2e4;
+      --warn:#9a4a00;    --warnbg:#fef0e0;
+      --gr-line:#e1e0d9;
+    }
+    @media(prefers-color-scheme:dark){:root{
+      --bg:#0d0d0c; --card:#1c1c1b; --card2:#242422; --card3:#2c2c2a;
+      --border:#2c2c2a; --border2:#3a3a37;
+      --ink:#ffffff; --ink2:#c3c2b7; --muted:#898781;
+      --griffin:#3987e5; --griffin-lt:rgba(57,135,229,.12); --griffin-glow:rgba(57,135,229,.25);
+      --brice:#d95926;   --brice-lt:rgba(217,89,38,.12);   --brice-glow:rgba(217,89,38,.25);
+      --proj:#199e70;    --proj-lt:rgba(25,158,112,.12);
+      --good:#0ca30c;    --goodbg:#0b250b;
+      --warn:#e08030;    --warnbg:#2a1500;
+      --gr-line:#2c2c2a;
+    }}
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink);min-height:100vh}
+
+    /* ── LOADER ── */
+    #loader{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:999;transition:opacity .3s}
+    .ld-inner{text-align:center}
+    .ld-icon{font-size:2rem;margin-bottom:10px;animation:livePulse 1s ease-in-out infinite}
+    .ld-txt{font-size:.875rem;color:var(--muted)}
+
+    /* ── DROP OVERLAY ── */
+    #drop-overlay{display:none;position:fixed;inset:0;z-index:500;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);align-items:center;justify-content:center}
+    #drop-overlay.active{display:flex}
+    .drop-inner{background:var(--card);border:2.5px dashed var(--griffin);border-radius:20px;padding:48px 56px;text-align:center;pointer-events:none}
+    .drop-icon{font-size:3rem;margin-bottom:12px}
+    .drop-title{font-size:1.125rem;font-weight:700;margin-bottom:6px}
+    .drop-sub{font-size:.8rem;color:var(--muted)}
+
+    /* ── TOAST ── */
+    #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:10px 20px;font-size:.8125rem;font-weight:600;box-shadow:0 8px 32px rgba(0,0,0,.18);z-index:600;transition:opacity .3s;opacity:0;pointer-events:none}
+    #toast.show{opacity:1}
+
+    /* ── HEADER ── */
+    .hdr{background:var(--card);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:60;backdrop-filter:blur(12px)}
+    .hdr-top{padding:12px 24px 0;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+    .hdr-top h1{font-size:.9375rem;font-weight:700;letter-spacing:-.01em}
+    .pill{font-size:.7rem;color:var(--muted);background:var(--card2);border:1px solid var(--border);border-radius:20px;padding:2px 9px;white-space:nowrap}
+    .live-badge{font-size:.7rem;font-weight:700;border-radius:20px;padding:2px 10px}
+    .live-badge.is-live  {color:var(--good);background:var(--goodbg);animation:livePulse 2.5s ease-in-out infinite}
+    .live-badge.is-file  {color:#1d5fa8;background:rgba(42,120,214,.12)}
+    .live-badge.is-cached{color:var(--warn);background:var(--warnbg)}
+    .live-badge.is-loading{color:var(--muted);background:var(--card2);animation:livePulse 1s ease-in-out infinite}
+    @keyframes livePulse{0%,100%{opacity:1}50%{opacity:.55}}
+
+    /* ── UPLOAD CONTROLS ── */
+    .upload-zone{margin-left:auto;display:flex;align-items:center;gap:8px}
+    #file-input{display:none}
+    .upload-btn{font-size:.72rem;font-weight:700;color:var(--griffin);background:var(--griffin-lt);border:1px solid rgba(42,120,214,.3);border-radius:20px;padding:3px 12px;cursor:pointer;white-space:nowrap;transition:background .15s}
+    .upload-btn:hover{background:rgba(42,120,214,.18)}
+    .file-loaded{font-size:.7rem;color:var(--muted);display:flex;align-items:center;gap:6px}
+    .file-loaded-dot{width:7px;height:7px;border-radius:50%;background:var(--griffin);flex-shrink:0}
+    .file-clear{font-size:.65rem;color:var(--muted);cursor:pointer;padding:1px 5px;border-radius:3px;background:var(--card2);border:1px solid var(--border)}
+    .file-clear:hover{background:var(--card3)}
+
+    /* ── TABS ── */
+    .tabs{display:flex;padding:0 18px;margin-top:8px;overflow-x:auto;scrollbar-width:none}
+    .tabs::-webkit-scrollbar{display:none}
+    .tab{padding:9px 16px;border:none;background:transparent;cursor:pointer;font-size:.8125rem;font-weight:600;color:var(--muted);border-bottom:2.5px solid transparent;white-space:nowrap;display:flex;align-items:center;gap:6px;transition:color .15s,border-color .15s,background .15s}
+    .tab:hover{color:var(--ink2);background:var(--card2)}
+    .tab.on {color:var(--ink); border-bottom-color:var(--ink)}
+    .tab.gon{color:var(--griffin);border-bottom-color:var(--griffin)}
+    .tab.bon{color:var(--brice);  border-bottom-color:var(--brice)}
+    .tab.hon{color:var(--muted);  border-bottom-color:var(--muted)}
+    .tdot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+
+    /* ── PANELS ── */
+    .panel{display:none}.panel.on{display:block;animation:fadeIn .2s ease}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+    .page{padding:20px 24px 64px;max-width:1340px;margin:0 auto}
+
+    /* ── UPLOAD PROMPT (shown when using fallback data) ── */
+    .upload-prompt{background:var(--card);border:1.5px dashed var(--border2);border-radius:12px;padding:20px 24px;margin-bottom:20px;display:flex;align-items:center;gap:16px}
+    .up-icon{font-size:1.5rem;flex-shrink:0}
+    .up-text h3{font-size:.875rem;font-weight:700;margin-bottom:3px}
+    .up-text p{font-size:.78rem;color:var(--muted);line-height:1.5}
+    .up-btn{margin-left:auto;font-size:.78rem;font-weight:700;color:var(--griffin);background:var(--griffin-lt);border:1px solid rgba(42,120,214,.3);border-radius:8px;padding:7px 16px;cursor:pointer;white-space:nowrap;flex-shrink:0}
+    .up-btn:hover{background:rgba(42,120,214,.18)}
+    .upload-prompt.hidden{display:none}
+
+    /* ── SECTION LABELS ── */
+    .slabel{font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:28px 0 9px;display:flex;align-items:center;gap:8px}
+    .slabel:first-child{margin-top:2px}
+    .slabel::after{content:'';flex:1;height:1px;background:var(--border)}
+    .note{font-size:.72rem;color:var(--muted);line-height:1.55;margin:-3px 0 12px}
+
+    /* ── HERO CARDS ── */
+    .hero-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+    @media(max-width:680px){.hero-row{grid-template-columns:1fr}}
+    .hero-card{border:1px solid var(--border);border-radius:14px;padding:22px 24px;position:relative;overflow:hidden;transition:box-shadow .2s}
+    .hero-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+    .hg{background:linear-gradient(135deg,var(--griffin-lt) 0%,var(--card) 55%)}
+    .hg::before{background:var(--griffin)}
+    .hg:hover{box-shadow:0 0 0 1px var(--griffin),0 8px 32px var(--griffin-glow)}
+    .hb{background:linear-gradient(135deg,var(--brice-lt) 0%,var(--card) 55%)}
+    .hb::before{background:var(--brice)}
+    .hb:hover{box-shadow:0 0 0 1px var(--brice),0 8px 32px var(--brice-glow)}
+    .hero-name{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:8px;display:flex;align-items:center;gap:8px}
+    .st-chip{font-size:.65rem;background:var(--goodbg);color:var(--good);border-radius:4px;padding:1px 5px;font-weight:700}
+    .hero-num{font-size:3rem;font-weight:800;line-height:1;letter-spacing:-.03em;font-variant-numeric:tabular-nums;margin-bottom:12px}
+    .hg .hero-num{color:var(--griffin)}
+    .hb .hero-num{color:var(--brice)}
+    .hero-sub{display:flex;gap:18px;flex-wrap:wrap}
+    .hero-sub-item{display:flex;flex-direction:column;gap:2px}
+    .hero-sub-lbl{font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+    .hero-sub-val{font-size:.9375rem;font-weight:700;font-variant-numeric:tabular-nums}
+    .pace-tag{position:absolute;bottom:16px;right:18px;font-size:.7rem;color:var(--muted);background:var(--card2);border:1px solid var(--border);border-radius:6px;padding:3px 8px}
+
+    /* ── PACE BAR ── */
+    .pace-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 20px;margin-bottom:12px}
+    .pace-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+    .pace-title{font-size:.8125rem;font-weight:600}
+    .pace-frac{font-size:.72rem;color:var(--muted)}
+    .pace-bar{height:8px;background:var(--card3);border-radius:4px;overflow:hidden;margin-bottom:6px}
+    .pace-fill{height:100%;width:0;background:linear-gradient(90deg,var(--griffin) 0%,var(--brice) 100%);border-radius:4px;transition:width 1.2s ease-out}
+    .pace-bot{display:flex;justify-content:space-between;font-size:.68rem;color:var(--muted)}
+
+    /* ── OVERVIEW GRID ── */
+    .ov-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:0}
+    @media(max-width:820px){.ov-grid{grid-template-columns:1fr}}
+    .tblk{background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+    .tblk-hdr{padding:12px 16px;display:flex;align-items:center;gap:9px;border-bottom:1px solid var(--border)}
+    .tblk-hdr h2{font-size:.9375rem;font-weight:700}
+    .tblk-hdr .tinfo{margin-left:auto;font-size:.7rem;color:var(--muted)}
+    .dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+    .cmp-tbl{width:100%;border-collapse:collapse}
+    .cmp-tbl thead th{font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:8px 14px;border-bottom:1px solid var(--border);text-align:right}
+    .cmp-tbl thead th:first-child{text-align:left;width:36%}
+    .cmp-tbl .th-c{color:var(--ink2)}
+    .cmp-tbl .th-p{color:var(--proj)}
+    .cmp-tbl tbody tr:hover{background:var(--card2)}
+    .cmp-tbl tbody td{padding:9px 14px;font-size:.8125rem;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums;text-align:right}
+    .cmp-tbl tbody td:first-child{text-align:left;color:var(--ink2);font-weight:500}
+    .cmp-tbl tbody tr:last-child td{border-bottom:none}
+    .cv{font-weight:700;color:var(--ink)}
+    .lv{color:var(--ink2)}
+    .pv{color:var(--proj);font-weight:600}
+
+    /* ── PERIOD CARDS ── */
+    .period-row{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px}
+    @media(max-width:700px){.period-row{grid-template-columns:1fr}}
+    .pc{background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+    .pc-curr{border-top:3px solid var(--tcolor)}
+    .pc-curr.glow-g{box-shadow:0 0 0 1px rgba(42,120,214,.25),0 8px 32px rgba(42,120,214,.12)}
+    .pc-curr.glow-b{box-shadow:0 0 0 1px rgba(235,104,52,.25),0 8px 32px rgba(235,104,52,.12)}
+    .pc-proj{border-top:3px solid var(--proj)}
+    .pc-hdr{padding:9px 14px;font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;background:var(--card2);border-bottom:1px solid var(--border)}
+    .pc-hdr.cur{color:var(--tcolor,var(--griffin))}
+    .pc-hdr.lst{color:var(--muted)}
+    .pc-hdr.prj{color:var(--proj)}
+    .mr{display:flex;justify-content:space-between;align-items:baseline;padding:9px 14px;border-bottom:1px solid var(--border);gap:8px}
+    .mr:last-child{border-bottom:none}
+    .mr-lbl{font-size:.72rem;color:var(--muted)}
+    .mr-rhs{text-align:right}
+    .mr-val{font-size:.9375rem;font-weight:700;font-variant-numeric:tabular-nums;display:block}
+    .mr-sub{font-size:.67rem;color:var(--muted)}
+
+    /* ── CHARTS ── */
+    .chart-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px 20px;margin-bottom:14px}
+    .chart-card h3{font-size:.875rem;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+    .chart-card h3 .sub{font-size:.72rem;font-weight:400;color:var(--muted);margin-left:auto}
+    .ch{position:relative}
+    .ch-200{height:200px}
+    .ch-220{height:220px}
+    .ch-180{height:180px}
+    .chart-2col{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+    @media(max-width:700px){.chart-2col{grid-template-columns:1fr}}
+    .donut-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px 20px;margin-bottom:0;display:flex;flex-direction:column;align-items:center}
+    .donut-card h3{font-size:.875rem;font-weight:700;margin-bottom:12px;width:100%}
+    .donut-wrap{position:relative;width:160px;height:160px;margin:0 auto 12px}
+    .donut-stats{width:100%;border-top:1px solid var(--border);padding-top:12px;margin-top:4px}
+    .ds-row{display:flex;justify-content:space-between;font-size:.8rem;padding:4px 0}
+    .ds-lbl{color:var(--muted)}
+    .ds-val{font-weight:600;font-variant-numeric:tabular-nums}
+
+    /* ── JOB / HISTORY TABLES ── */
+    .tcrd{background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:14px}
+    .tcrd-hdr{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+    .tcrd-hdr h3{font-size:.875rem;font-weight:700}
+    .tsub{font-size:.7rem;color:var(--muted)}
+    .twrap{overflow-x:auto}
+    table{width:100%;border-collapse:collapse;font-size:.8125rem}
+    thead th{padding:7px 14px;font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border);text-align:left;white-space:nowrap}
+    th.r,td.r{text-align:right}
+    tbody td{padding:9px 14px;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums}
+    tbody tr:last-child td{border-bottom:none}
+    tbody tr:hover{background:var(--card2)}
+    tbody tr.curr-row{background:var(--card2);font-weight:600}
+    .badge{display:inline-flex;align-items:center;font-size:.68rem;font-weight:600;padding:1px 6px;border-radius:3px}
+    .bg{background:var(--goodbg);color:var(--good)}
+    .bw{background:var(--warnbg);color:var(--warn)}
+    .dim{color:var(--muted)}
+    .na{color:var(--muted);font-style:italic}
+    @media(max-width:520px){.page{padding:14px 14px 60px}}
+  </style>
+</head>
+<body>
+
+<!-- DROP OVERLAY -->
+<div id="drop-overlay">
+  <div class="drop-inner">
+    <div class="drop-icon">📊</div>
+    <div class="drop-title">Drop your ST reports here</div>
+    <div class="drop-sub">Elect Sales Scorecard + Opportunity Follow Up (.xlsx)</div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<!-- LOADER -->
+<div id="loader"><div class="ld-inner"><div class="ld-icon">⚡</div><div class="ld-txt">Loading scorecard…</div></div></div>
+
+<header class="hdr">
+  <div class="hdr-top">
+    <h1>⚡ Electrical Sales Scorecard</h1>
+    <span class="pill" id="hdr-date">—</span>
+    <span class="live-badge is-loading" id="live-badge">● Loading…</span>
+    <div class="upload-zone">
+      <input type="file" id="file-input" multiple accept=".xlsx">
+      <div id="file-status-loaded" class="file-loaded" style="display:none">
+        <span class="file-loaded-dot"></span>
+        <span id="file-status-txt">2 files loaded</span>
+        <button class="file-clear" onclick="clearFiles()">✕ Clear</button>
+      </div>
+      <button class="upload-btn" id="upload-btn" onclick="document.getElementById('file-input').click()">↑ Upload ST Reports</button>
+    </div>
+  </div>
+  <div class="tabs">
+    <button class="tab on"  id="t-ov" onclick="go('ov',this)">Overview</button>
+    <button class="tab"     id="t-gm" onclick="go('gm',this)"><span class="tdot" style="background:var(--griffin)"></span>Griffin M</button>
+    <button class="tab"     id="t-bk" onclick="go('bk',this)"><span class="tdot" style="background:var(--brice)"></span>Brice K</button>
+    <button class="tab hon" id="t-hy" onclick="go('hy',this)">📅 Year History</button>
+  </div>
+</header>
+
+<!-- OVERVIEW -->
+<div class="panel on" id="pov"><div class="page">
+  <div id="upload-prompt-ov" class="upload-prompt">
+    <div class="up-icon">📂</div>
+    <div class="up-text">
+      <h3>Showing cached data</h3>
+      <p>Upload your two ST Excel exports to populate live numbers — Elect Sales Scorecard + Opportunity Follow Up.</p>
+    </div>
+    <button class="up-btn" onclick="document.getElementById('file-input').click()">Upload Reports</button>
+  </div>
+  <div class="hero-row">
+    <div class="hero-card hg">
+      <div class="hero-name"><span class="dot" style="background:var(--griffin)"></span>Griffin M<span class="st-chip">★ ST</span></div>
+      <div class="hero-num" id="h-gm-s">$0</div>
+      <div class="hero-sub">
+        <div class="hero-sub-item"><span class="hero-sub-lbl">Close Rate</span><span class="hero-sub-val" id="h-gm-cr">–</span></div>
+        <div class="hero-sub-item"><span class="hero-sub-lbl">Avg Ticket</span><span class="hero-sub-val" id="h-gm-tk">–</span></div>
+        <div class="hero-sub-item"><span class="hero-sub-lbl">Jobs Done</span><span class="hero-sub-val" id="h-gm-j">–</span></div>
+        <div class="hero-sub-item"><span class="hero-sub-lbl">Opps Closed</span><span class="hero-sub-val" id="h-gm-o">–</span></div>
+      </div>
+      <span class="pace-tag" id="h-gm-tag">–</span>
+    </div>
+    <div class="hero-card hb">
+      <div class="hero-name"><span class="dot" style="background:var(--brice)"></span>Brice K<span class="st-chip">★ ST</span></div>
+      <div class="hero-num" id="h-bk-s">$0</div>
+      <div class="hero-sub">
+        <div class="hero-sub-item"><span class="hero-sub-lbl">Close Rate</span><span class="hero-sub-val" id="h-bk-cr">–</span></div>
+        <div class="hero-sub-item"><span class="hero-sub-lbl">Avg Ticket</span><span class="hero-sub-val" id="h-bk-tk">–</span></div>
+        <div class="hero-sub-item"><span class="hero-sub-lbl">Jobs Done</span><span class="hero-sub-val" id="h-bk-j">–</span></div>
+        <div class="hero-sub-item"><span class="hero-sub-lbl">Opps Closed</span><span class="hero-sub-val" id="h-bk-o">–</span></div>
+      </div>
+      <span class="pace-tag" id="h-bk-tag">–</span>
+    </div>
+  </div>
+  <div class="pace-card">
+    <div class="pace-top"><span class="pace-title" id="pace-title">— Progress</span><span class="pace-frac" id="pace-frac">—</span></div>
+    <div class="pace-bar"><div class="pace-fill" id="pace-fill"></div></div>
+    <div class="pace-bot"><span id="pace-mo-start">—</span><span id="pace-pct">—</span><span id="pace-mo-end">—</span></div>
+  </div>
+  <p class="slabel">This Month vs Last Month vs Projected</p>
+  <p class="note" id="ov-note">Loading…</p>
+  <div class="ov-grid" style="margin-bottom:14px">
+    <div class="tblk">
+      <div class="tblk-hdr"><span class="dot" style="background:var(--griffin)"></span><h2>Griffin M</h2><span class="tinfo" id="gm-tinfo">—</span></div>
+      <table class="cmp-tbl"><thead><tr><th></th><th class="th-c" id="gm-cmp-hd1">Current</th><th>Last Month</th><th class="th-p">Projected ↗</th></tr></thead><tbody id="gm-cmp"></tbody></table>
+    </div>
+    <div class="tblk">
+      <div class="tblk-hdr"><span class="dot" style="background:var(--brice)"></span><h2>Brice K</h2><span class="tinfo" id="bk-tinfo">—</span></div>
+      <table class="cmp-tbl"><thead><tr><th></th><th class="th-c" id="bk-cmp-hd1">Current</th><th>Last Month</th><th class="th-p">Projected ↗</th></tr></thead><tbody id="bk-cmp"></tbody></table>
+    </div>
+  </div>
+  <p class="slabel">Daily Sales</p>
+  <div class="chart-card"><div class="ch ch-220"><canvas id="ov-daily"></canvas></div></div>
+  <p class="slabel">Close Rate Trend</p>
+  <div class="chart-card"><div class="ch ch-200"><canvas id="ov-cr"></canvas></div></div>
+  <p class="slabel">Brice K — Revenue History</p>
+  <div class="chart-card"><div class="ch ch-220"><canvas id="ov-rev"></canvas></div></div>
+</div></div>
+
+<!-- GRIFFIN -->
+<div class="panel" id="pgm"><div class="page" style="--tcolor:var(--griffin)">
+  <p class="slabel">This Month vs Last Month vs Projected</p>
+  <p class="note" id="gm-period-note">Current month from ST exports · Last month from ST exports · Projection: linear pace.</p>
+  <div class="period-row" id="gm-prow"></div>
+  <p class="slabel">Performance Breakdown — Current Month</p>
+  <div class="chart-2col">
+    <div class="donut-card">
+      <h3>Close Rate</h3>
+      <div class="donut-wrap"><canvas id="gm-donut"></canvas></div>
+      <div class="donut-stats">
+        <div class="ds-row"><span class="ds-lbl">Opportunities Presented</span><span class="ds-val" id="gm-d-opps">—</span></div>
+        <div class="ds-row"><span class="ds-lbl">Opportunities Closed</span><span class="ds-val" id="gm-d-sold">—</span></div>
+        <div class="ds-row"><span class="ds-lbl">Close Rate</span><span class="ds-val" id="gm-d-cr" style="color:var(--griffin)">—</span></div>
+        <div class="ds-row"><span class="ds-lbl">Source</span><span class="ds-val" id="gm-d-src">Opportunity Report</span></div>
+      </div>
+    </div>
+    <div class="chart-card" style="margin-bottom:0">
+      <h3>Daily Sales<span class="sub" id="gm-daily-sub">Current Month</span></h3>
+      <div class="ch ch-200"><canvas id="gm-daily"></canvas></div>
+    </div>
+  </div>
+  <p class="slabel">Monthly Revenue Trend</p>
+  <div class="chart-2col">
+    <div class="chart-card" style="margin-bottom:0"><h3>Revenue by Month</h3><div class="ch ch-180"><canvas id="gm-rev"></canvas></div></div>
+    <div class="chart-card" style="margin-bottom:0"><h3>Jobs Completed</h3><div class="ch ch-180"><canvas id="gm-jobs"></canvas></div></div>
+  </div>
+  <div style="height:14px"></div>
+  <p class="slabel">Job Detail — Current Month</p>
+  <div class="tcrd">
+    <div class="tcrd-hdr"><h3>All Jobs</h3><span class="tsub" id="gm-jt-src">ST Excel export</span></div>
+    <div class="twrap"><table>
+      <thead><tr><th>Job #</th><th>Date</th><th class="r">Estimates</th><th class="r">Won Amount</th><th class="r">Price Var</th><th>Status</th></tr></thead>
+      <tbody id="gm-jt"></tbody>
+    </table></div>
+  </div>
+</div></div>
+
+<!-- BRICE -->
+<div class="panel" id="pbk"><div class="page" style="--tcolor:var(--brice)">
+  <p class="slabel">This Month vs Last Month vs Projected</p>
+  <p class="note" id="bk-period-note">Current month from ST exports · Last month from ST exports · Projection: linear pace.</p>
+  <div class="period-row" id="bk-prow"></div>
+  <p class="slabel">Performance Breakdown — Current Month</p>
+  <div class="chart-2col">
+    <div class="donut-card">
+      <h3>Close Rate</h3>
+      <div class="donut-wrap"><canvas id="bk-donut"></canvas></div>
+      <div class="donut-stats">
+        <div class="ds-row"><span class="ds-lbl">Opportunities Presented</span><span class="ds-val" id="bk-d-opps">—</span></div>
+        <div class="ds-row"><span class="ds-lbl">Opportunities Closed</span><span class="ds-val" id="bk-d-sold">—</span></div>
+        <div class="ds-row"><span class="ds-lbl">Close Rate</span><span class="ds-val" id="bk-d-cr" style="color:var(--brice)">—</span></div>
+        <div class="ds-row"><span class="ds-lbl">Source</span><span class="ds-val" id="bk-d-src">Opportunity Report</span></div>
+      </div>
+    </div>
+    <div class="chart-card" style="margin-bottom:0">
+      <h3>Daily Sales<span class="sub">Current Month</span></h3>
+      <div class="ch ch-200"><canvas id="bk-daily"></canvas></div>
+    </div>
+  </div>
+  <p class="slabel">Close Rate Trend</p>
+  <div class="chart-card"><div class="ch ch-200"><canvas id="bk-cr"></canvas></div></div>
+  <p class="slabel">Job Detail — Current Month</p>
+  <div class="tcrd">
+    <div class="tcrd-hdr"><h3>All Jobs</h3><span class="tsub" id="bk-jt-src">ST Excel export</span></div>
+    <div class="twrap"><table>
+      <thead><tr><th>Job #</th><th>Date</th><th class="r">Estimates</th><th class="r">Won Amount</th><th class="r">Price Var</th><th>Status</th></tr></thead>
+      <tbody id="bk-jt"></tbody>
+    </table></div>
+  </div>
+</div></div>
+
+<!-- HISTORY -->
+<div class="panel" id="phy"><div class="page">
+  <p class="slabel">Year at a Glance</p>
+  <div class="chart-2col">
+    <div class="chart-card" style="margin-bottom:0"><h3>Brice K — Monthly Revenue<span class="sub" id="hy-bk-span">13 months</span></h3><div class="ch ch-220"><canvas id="hy-rev"></canvas></div></div>
+    <div class="chart-card" style="margin-bottom:0"><h3>Brice K — Jobs Completed<span class="sub" id="hy-bk-span2">13 months</span></h3><div class="ch ch-220"><canvas id="hy-jobs"></canvas></div></div>
+  </div>
+  <div style="height:14px"></div>
+  <div class="chart-2col">
+    <div class="chart-card" style="margin-bottom:0"><h3>Close Rate Trend</h3><div class="ch ch-200"><canvas id="hy-cr"></canvas></div></div>
+    <div class="chart-card" style="margin-bottom:0"><h3>Average Ticket</h3><div class="ch ch-200"><canvas id="hy-tk"></canvas></div></div>
+  </div>
+  <div style="height:14px"></div>
+  <p class="slabel">Brice K — Monthly Breakdown</p>
+  <p class="note">Close rate from Opportunity Follow Up report. ★ = current month (partial). Avg ticket = revenue ÷ jobs.</p>
+  <div class="tcrd"><div class="twrap"><table>
+    <thead><tr><th>Month</th><th class="r">Jobs</th><th class="r">Revenue</th><th class="r">Sold</th><th class="r">Close Rate</th><th class="r">Avg Ticket</th><th class="r">Est/Job</th></tr></thead>
+    <tbody id="bk-htb"></tbody>
+  </table></div></div>
+  <p class="slabel">Griffin M — Monthly Breakdown</p>
+  <p class="note">Griffin started Jul 2026. ★ = current month (partial).</p>
+  <div class="tcrd"><div class="twrap"><table>
+    <thead><tr><th>Month</th><th class="r">Jobs</th><th class="r">Revenue</th><th class="r">Sold</th><th class="r">Close Rate</th><th class="r">Avg Ticket</th><th class="r">Est/Job</th></tr></thead>
+    <tbody id="gm-htb"></tbody>
+  </table></div></div>
+</div></div>
+
+<script>
+/* ══════════════════════════════════════════════════════════════════
+   SCORECARD v7 — Excel upload edition
+   Drop the two ST exports anywhere on the page to refresh all data.
+   Falls back to Google Sheets → hardcoded cache if no files loaded.
+   ══════════════════════════════════════════════════════════════════ */
+
+/* ── GOOGLE SHEETS (secondary fallback) ─────────────────────────── */
+const SHEET_IDS={
+  data:   '13FU6fp-cdvG0uPbfxFT89li45MMe5fyFQeW0YXzDNME',
+  daily:  '1gkJVkaej-sHq7FhwXQBb6tdVVCnBoS-s4JdyyGVZwW8',
+  history:'1mWyawYMxs6d6aDpAxQ8NXNkjahPZIrzYWcF0_CLQJtk'
+};
+const CSV=id=>`https://docs.google.com/spreadsheets/d/${id}/export?format=csv`;
+
+/* ── HARDCODED FALLBACK ──────────────────────────────────────────── */
+const FB={
+  month:'August 2026', WD_EL:8, WD_TOT:21,
+  CURR:{
+    gm:{sales:19181,jobs:20,sold:10,opps:19,cr:52.6,tk:1918,epj:2.25,pv:'30.3%'},
+    bk:{sales:25866,jobs:16,sold:7, opps:14,cr:50.0,tk:3695,epj:1.53,pv:'0%'}
+  },
+  LAST:{
+    gm:{sales:99,       jobs:3, sold:1, cr:33.3,tk:99,     epj:null},
+    bk:{sales:67297.81, jobs:60,sold:18,cr:30.0,tk:3738.77,epj:1.52}
+  },
+  DAILY_LBL:['08/03','08/04','08/05','08/06','08/07','08/10','08/11','08/12'],
+  GM_DAILY:[4947,0,2838,1585,0,8512.40,0,1299],
+  BK_DAILY:[1908,1692.38,2368,0,0,15650,0,0],
+  BK_HIST:[
+    {l:'Aug 2025',jobs:55,rev:39700,     sold:null,cr:null,tk:null,    epj:1.15},
+    {l:'Sep 2025',jobs:68,rev:55951.25,  sold:null,cr:null,tk:null,    epj:1.31},
+    {l:'Oct 2025',jobs:41,rev:48973,     sold:null,cr:null,tk:null,    epj:1.51},
+    {l:'Nov 2025',jobs:40,rev:46200,     sold:null,cr:null,tk:null,    epj:1.40},
+    {l:'Dec 2025',jobs:59,rev:39425,     sold:null,cr:null,tk:null,    epj:0.98},
+    {l:'Jan 2026',jobs:52,rev:31417.50,  sold:null,cr:null,tk:null,    epj:1.13},
+    {l:'Feb 2026',jobs:42,rev:35675,     sold:null,cr:null,tk:null,    epj:1.55},
+    {l:'Mar 2026',jobs:68,rev:56878.48,  sold:null,cr:null,tk:null,    epj:1.66},
+    {l:'Apr 2026',jobs:50,rev:37188.37,  sold:14,  cr:28.0,tk:2089.45,epj:1.16},
+    {l:'May 2026',jobs:49,rev:90313.35,  sold:16,  cr:32.7,tk:2984.26,epj:1.08},
+    {l:'Jun 2026',jobs:76,rev:64828.49,  sold:27,  cr:35.5,tk:2389.98,epj:1.33},
+    {l:'Jul 2026',jobs:60,rev:67297.81,  sold:18,  cr:30.0,tk:3738.77,epj:1.52},
+    {l:'Aug 2026★',jobs:16,rev:25866,   sold:7,   cr:50.0,tk:3695,   epj:1.53},
+  ],
+  GM_HIST:[
+    {l:'Jul 2026',   jobs:3, rev:99,   sold:1, cr:33.3,tk:33,  epj:null},
+    {l:'Aug 2026★',jobs:20,rev:19181,sold:10,cr:52.6,tk:959, epj:2.25},
+  ],
+  GM_JOBS:[
+    {j:'251831',d:'08/05',e:1, s:310,    pv:30.3,ok:true},
+    {j:'249328',d:'08/03',e:4, s:4947,   pv:0,   ok:true},
+    {j:'254439',d:'08/10',e:2, s:6828,   pv:0,   ok:true},
+    {j:'247237',d:'08/05',e:2, s:2098,   pv:0,   ok:true},
+    {j:'251832',d:'08/06',e:1, s:1206,   pv:0,   ok:true},
+    {j:'253845',d:'08/05',e:2, s:430,    pv:0,   ok:true},
+    {j:'253571',d:'08/06',e:3, s:379,    pv:0,   ok:true},
+    {j:'254579',d:'08/10',e:3, s:1375.40,pv:0,   ok:true},
+    {j:'253032',d:'08/12',e:1, s:1299,   pv:0,   ok:true},
+    {j:'254677',d:'08/10',e:1, s:309,    pv:0,   ok:true},
+    {j:'251609',d:'08/04',e:3,s:0,pv:0,ok:false},{j:'243880',d:'08/10',e:2,s:0,pv:0,ok:false},
+    {j:'250728',d:'08/12',e:4,s:0,pv:0,ok:false},{j:'253469',d:'08/05',e:0,s:0,pv:0,ok:false},
+    {j:'253109',d:'08/04',e:3,s:0,pv:0,ok:false},{j:'251091',d:'08/09',e:1,s:0,pv:0,ok:false},
+    {j:'254989',d:'08/11',e:2,s:0,pv:0,ok:false},{j:'253889',d:'08/10',e:0,s:0,pv:0,ok:false},
+    {j:'254020',d:'08/05',e:0,s:0,pv:0,ok:false},{j:'251647',d:'08/04',e:4,s:0,pv:0,ok:false},
+    {j:'254886',d:'Pending',e:0,s:0,pv:0,ok:false},{j:'253705',d:'Pending',e:2,s:0,pv:0,ok:false},
+  ],
+  BK_JOBS:[
+    {j:'252217',d:'08/10',e:1,s:15650,  pv:0,ok:true},{j:'252455',d:'08/03',e:1,s:1908,   pv:0,ok:true},
+    {j:'249133',d:'08/05',e:1,s:2368,   pv:0,ok:true},{j:'253189',d:'08/04',e:1,s:1692.38,pv:0,ok:true},
+    {j:'254240',d:'08/06',e:0,s:0,pv:0,ok:false},{j:'254626',d:'08/07',e:1,s:0,pv:0,ok:false},
+    {j:'253780',d:'08/07',e:2,s:0,pv:0,ok:false},{j:'250554',d:'08/05',e:1,s:0,pv:0,ok:false},
+    {j:'254809',d:'08/11',e:3,s:0,pv:0,ok:false},{j:'253998',d:'08/11',e:5,s:0,pv:0,ok:false},
+    {j:'254094',d:'08/05',e:1,s:0,pv:0,ok:false},{j:'254155',d:'08/06',e:1,s:0,pv:0,ok:false},
+    {j:'254121',d:'08/07',e:0,s:0,pv:0,ok:false},{j:'253975',d:'08/04',e:3,s:0,pv:0,ok:false},
+    {j:'254839',d:'08/12',e:1,s:0,pv:0,ok:false},{j:'255282',d:'Pending',e:0,s:0,pv:0,ok:false},
+  ]
+};
+
+/* ── THEME ───────────────────────────────────────────────────────── */
+const dk=window.matchMedia('(prefers-color-scheme:dark)').matches;
+const C={
+  g:dk?'#3987e5':'#2a78d6', b:dk?'#d95926':'#eb6834', p:dk?'#199e70':'#1baf7a',
+  sf:dk?'#1c1c1b':'#fcfcfb', gr:dk?'#2c2c2a':'#e1e0d9', mu:'#898781',
+  se:dk?'#c3c2b7':'#52514e',
+  bg_g:dk?'rgba(57,135,229,.18)':'rgba(42,120,214,.12)',
+  bg_b:dk?'rgba(217,89,38,.18)':'rgba(235,104,52,.12)',
+  bg_p:dk?'rgba(25,158,112,.18)':'rgba(27,175,122,.12)',
+};
+Chart.defaults.font.family="system-ui,-apple-system,'Segoe UI',sans-serif";
+Chart.defaults.color=C.se;
+const TT={backgroundColor:C.sf,borderColor:dk?'rgba(255,255,255,.12)':'rgba(11,11,11,.12)',borderWidth:1,titleColor:dk?'#fff':'#0b0b0b',bodyColor:C.se,padding:11,cornerRadius:8,boxWidth:10,boxHeight:10,usePointStyle:true};
+const AX={grid:{color:C.gr},border:{color:C.gr},ticks:{color:C.mu,font:{size:11}}};
+const f$ =v=>'$'+v.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const f$0=v=>'$'+Math.round(v).toLocaleString('en-US');
+const fk =v=>'$'+(v>=1000?(v/1000).toFixed(0)+'k':v.toFixed(0));
+const $  =id=>document.getElementById(id);
+
+/* ── CENTER-TEXT DOUGHNUT PLUGIN ─────────────────────────────────── */
+Chart.register({
+  id:'centerText',
+  afterDatasetsDraw(chart){
+    if(chart.config.type!=='doughnut')return;
+    const o=chart.options?.plugins?.centerText;
+    if(!o||!o.pct)return;
+    const{ctx,chartArea:{left,top,width,height}}=chart;
+    const cx=left+width/2, cy=top+height/2;
+    ctx.save();
+    ctx.textAlign='center';
+    const sz=Math.round(width*0.19);
+    ctx.font=`800 ${sz}px system-ui,-apple-system,sans-serif`;
+    ctx.fillStyle=dk?'#fff':'#0b0b0b';
+    ctx.textBaseline='bottom';
+    ctx.fillText(o.pct+'%',cx,cy+5);
+    ctx.font=`${Math.round(width*0.085)}px system-ui,-apple-system,sans-serif`;
+    ctx.fillStyle=C.mu;
+    ctx.textBaseline='top';
+    ctx.fillText(o.sub||'close rate',cx,cy+9);
+    ctx.restore();
+  }
+});
+
+/* ── TAB SWITCHING ───────────────────────────────────────────────── */
+const TABS=['ov','gm','bk','hy'];
+const TCLS={ov:'on',gm:'gon',bk:'bon',hy:'hon'};
+function go(n,btn){
+  TABS.forEach(t=>{$('p'+t).classList.remove('on');$('t-'+t).className='tab'+(t==='hy'?' hon':'')});
+  $('p'+n).classList.add('on');
+  btn.className='tab '+TCLS[n];
+}
+
+/* ── COUNT-UP ────────────────────────────────────────────────────── */
+function countUp(el,end,{prefix='',suffix='',dur=1100,round=true}={}){
+  const t0=performance.now();
+  function tick(now){
+    const p=Math.min((now-t0)/dur,1);
+    const ease=1-Math.pow(1-p,3);
+    const v=end*ease;
+    el.textContent=prefix+(round?Math.round(v).toLocaleString('en-US'):v.toFixed(1))+suffix;
+    if(p<1)requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+/* ── TOAST ───────────────────────────────────────────────────────── */
+let _toastTimer;
+function showToast(msg,color='var(--ink)'){
+  const t=$('toast');
+  t.textContent=msg;
+  t.style.color=color;
+  t.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer=setTimeout(()=>t.classList.remove('show'),3500);
+}
+
+/* ── CSV PARSER (Google Sheets fallback) ─────────────────────────── */
+function parseCSV(text){
+  return text.trim().split('\n').map(row=>{
+    const res=[]; let cur='',inQ=false;
+    for(let i=0;i<row.length;i++){
+      const c=row[i];
+      if(c==='"'){inQ=!inQ;continue;}
+      if(c===','&&!inQ){res.push(cur.trim());cur='';continue;}
+      cur+=c;
+    }
+    res.push(cur.trim());
+    return res;
+  });
+}
+function csvToMap(text){
+  const rows=parseCSV(text).slice(1);
+  const m={};
+  rows.forEach(([k,v])=>{if(k&&!k.startsWith('---'))m[k.trim()]=v?v.trim():'';});
+  return m;
+}
+const num=(v,fb=0)=>v?parseFloat(v)||fb:fb;
+const int=(v,fb=0)=>v?parseInt(v)||fb:fb;
+
+/* ══════════════════════════════════════════════════════════════════
+   EXCEL PARSING — SheetJS
+   ══════════════════════════════════════════════════════════════════ */
+
+/* Tech name matchers
+   "Brice K-M" uses any hyphen/dash variant between K and M — regex handles all of them */
+const isGriffin=name=>name&&name.toLowerCase().includes('griffin');
+const isBrice=name=>{
+  if(!name)return false;
+  const n=name.toLowerCase();
+  if(!n.includes('brice'))return false;
+  // Exclude "Brice K-M", "Brice K–M", "Brice K—M" (any character between K and M)
+  if(/brice\s+k.m/i.test(name))return false;
+  return true;
+};
+
+/* Working day helpers */
+function countWorkdays(from,to){
+  let n=0;
+  const d=new Date(from.getTime());
+  d.setHours(0,0,0,0);
+  const end=new Date(to.getTime());
+  end.setHours(23,59,59,999);
+  while(d<=end){
+    const dw=d.getDay();
+    if(dw!==0&&dw!==6)n++;
+    d.setDate(d.getDate()+1);
+  }
+  return n;
+}
+function getWorkdayInfo(){
+  const today=new Date();
+  const moStart=new Date(today.getFullYear(),today.getMonth(),1);
+  const moEnd=new Date(today.getFullYear(),today.getMonth()+1,0);
+  return{WD_EL:countWorkdays(moStart,today),WD_TOT:countWorkdays(moStart,moEnd)};
+}
+
+/* Convert SheetJS date (UTC midnight) to local Date */
+function xlDate(val){
+  if(val instanceof Date){
+    // SheetJS returns UTC midnight — convert to local midnight
+    return new Date(val.getUTCFullYear(),val.getUTCMonth(),val.getUTCDate());
+  }
+  if(typeof val==='number'){
+    // Raw Excel serial
+    const d=new Date(Math.round((val-25569)*86400*1000));
+    return new Date(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate());
+  }
+  if(typeof val==='string'&&val){
+    const s=val.trim();
+    // M/D/YYYY or MM/DD/YYYY (US format — most common in ST exports)
+    const us=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+    if(us){
+      const yr=us[3].length===2?(parseInt(us[3])<50?2000+parseInt(us[3]):1900+parseInt(us[3])):parseInt(us[3]);
+      return new Date(yr,parseInt(us[1])-1,parseInt(us[2]));
+    }
+    // YYYY-MM-DD (ISO)
+    const iso=s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if(iso) return new Date(parseInt(iso[1]),parseInt(iso[2])-1,parseInt(iso[3]));
+    // Generic fallback
+    const d=new Date(s);
+    if(!isNaN(d))return d;
+  }
+  return null;
+}
+
+/* Parse numeric value that may be a currency-formatted string */
+function xlNum(val){
+  if(val==null||val==='')return 0;
+  if(typeof val==='number')return val;
+  // Strip $, commas, spaces, parentheses-style negatives
+  const s=val.toString().replace(/[$,\s]/g,'').replace(/^\((.+)\)$/,'-$1');
+  const n=parseFloat(s);
+  return isNaN(n)?0:n;
+}
+
+function moKey(d){
+  return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+
+function parsePV(v){
+  if(v==null||v==='')return 0;
+  const s=v.toString().replace('%','').trim();
+  const n=parseFloat(s);
+  if(isNaN(n))return 0;
+  // If stored as fraction (0.303) convert to percent
+  return(Math.abs(n)>0&&Math.abs(n)<2)?+(n*100).toFixed(1):+n.toFixed(1);
+}
+
+/* Detect which ST report this is by checking column headers */
+function detectFileType(headers){
+  const h=headers.map(h=>(h||'').toString().toLowerCase().trim());
+  if(h.includes('primary technician'))return'scorecard';
+  if(h.includes('opportunity number')||h.includes('estimate created by'))return'opportunity';
+  return null;
+}
+
+/* Parse Elect Sales Scorecard Excel */
+function parseScorecard(rows){
+  const hdrs=rows[0].map(h=>(h||'').toString().trim());
+  const iJob=hdrs.indexOf('Job #');
+  const iDate=hdrs.indexOf('Completion Date');
+  const iTech=hdrs.indexOf('Primary Technician');
+  const iEst=hdrs.indexOf('Estimates');
+  const iPV=hdrs.indexOf('Price Variation');
+
+  if(iTech===-1){throw new Error('Scorecard: "Primary Technician" column not found — wrong file?');}
+
+  console.log('  All headers:', hdrs.filter(Boolean));
+
+  const byMonth={};
+  rows.slice(1).forEach(row=>{
+    const tech=(row[iTech]||'').toString().trim();
+    if(!tech)return;
+    const rawDate=iDate>=0?row[iDate]:null;
+    const d=xlDate(rawDate);
+    if(!d||isNaN(d))return;
+    const mk=moKey(d);
+    if(!byMonth[mk])byMonth[mk]=[];
+    byMonth[mk].push({
+      job:(row[iJob]||'').toString().trim(),
+      date:d,
+      tech,
+      est:iEst>=0?xlNum(row[iEst]):0,  // estimate COUNT (number of estimates on this job)
+      pv:parsePV(iPV>=0?row[iPV]:0),
+      isGriffin:isGriffin(tech),
+      isBrice:isBrice(tech)
+    });
+  });
+  return{byMonth};
+}
+
+/* Parse Opportunity and Estimate Follow Up Excel
+   Revenue  = sum of Estimates Subtotal where Estimate Status='Sold', grouped by Sold On month, attributed to Sold By
+   Won jobs = parent job numbers that have at least one Sold estimate (for cross-ref with scorecard)
+   soldJobMap = job# -> {sold:true, rev:N} for every job with a Sold estimate
+*/
+function parseOpportunity(rows){
+  const hdrs=rows[0].map(h=>(h||'').toString().trim());
+  const iOpp=hdrs.indexOf('Opportunity Number');
+  const iEstStatus=hdrs.indexOf('Estimate Status');
+  const iSubtotal=hdrs.indexOf('Estimates Subtotal');
+  const iCreatedBy=hdrs.indexOf('Estimate Created By');
+  const iSoldBy=hdrs.indexOf('Sold By');
+  const iSoldOn=hdrs.indexOf('Sold On');
+  const iParentJob=hdrs.indexOf('Parent Job Number');
+
+  if(iOpp===-1||iCreatedBy===-1){throw new Error('Opportunity headers not found — wrong file?');}
+
+  // Revenue by sold month (for display totals)
+  const revByMonth={};  // mk -> {gm:0, bk:0}
+
+  // Map of parent job # -> revenue from sold estimates (for close rate cross-ref)
+  const soldJobMap={};  // jobNum -> {gm:bool, bk:bool, rev:0}
+
+  rows.slice(1).forEach(row=>{
+    const estStatus=iEstStatus>=0?(row[iEstStatus]||'').toString().trim():'';
+    if(estStatus!=='Sold')return;  // Only care about sold estimates
+
+    const soldBy=iSoldBy>=0?(row[iSoldBy]||'').toString().trim():'';
+    const subtotal=iSubtotal>=0?xlNum(row[iSubtotal]):0;
+    const soldOn=iSoldOn>=0?xlDate(row[iSoldOn]):null;
+    const parentJob=iParentJob>=0?(row[iParentJob]||'').toString().trim():'';
+
+    // Revenue by sold month
+    if(soldOn&&!isNaN(soldOn)){
+      const mk=moKey(soldOn);
+      if(!revByMonth[mk])revByMonth[mk]={gm:0,bk:0};
+      if(isGriffin(soldBy))revByMonth[mk].gm+=subtotal;
+      else if(isBrice(soldBy))revByMonth[mk].bk+=subtotal;
+    }
+
+    // Track which parent jobs have sold estimates (for close rate)
+    if(parentJob){
+      if(!soldJobMap[parentJob])soldJobMap[parentJob]={gm:false,bk:false,rev:0};
+      if(isGriffin(soldBy))soldJobMap[parentJob].gm=true;
+      else if(isBrice(soldBy))soldJobMap[parentJob].bk=true;
+      soldJobMap[parentJob].rev+=subtotal;
+    }
+  });
+
+  return{revByMonth,soldJobMap};
+}
+
+/* Build the render-ready data object from both parsed files */
+function buildDataFromFiles(scorecardData,oppData){
+  const MO=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const today=new Date();
+  const currMk=moKey(today);
+  const lastDate=new Date(today.getFullYear(),today.getMonth()-1,1);
+  const lastMk=moKey(lastDate);
+  const {WD_EL,WD_TOT}=getWorkdayInfo();
+
+  const moLabel=(mk,isCurr=false)=>{
+    const[yr,mo]=mk.split('-').map(Number);
+    return`${MO[mo-1]} ${yr}${isCurr?'★':''}`;
+  };
+
+  // Helper: compute opp stats for a set of scorecard rows using oppData cross-reference
+  // opps = jobs where Estimates > 0 (scorecard)
+  // sold = those jobs where a Sold estimate exists in the opp file (soldJobMap)
+  // revenue = sum of Estimates Subtotal sold in this month (revByMonth), by Sold By tech
+  function calcOppStats(rows,mk,tech){
+    const {soldJobMap,revByMonth}=oppData;
+    const revMo=revByMonth[mk]||{gm:0,bk:0};
+    const techRows=rows.filter(r=>tech==='gm'?r.isGriffin:r.isBrice);
+    const jobsWithEst=techRows.filter(r=>r.est>0);
+    const opps=jobsWithEst.length;
+    const soldJobs=jobsWithEst.filter(r=>soldJobMap[r.job]&&soldJobMap[r.job][tech]);
+    const sold=soldJobs.length;
+    const rev=tech==='gm'?revMo.gm:revMo.bk;
+    const cr=opps>0?+(sold/opps*100).toFixed(1):0;
+    const tk=sold>0?Math.round(rev/sold):0;
+    return{opps,sold,cr,rev,tk};
+  }
+
+  const currRows=scorecardData.byMonth[currMk]||[];
+  const lastRows=scorecardData.byMonth[lastMk]||[];
+
+  const gmCurr=currRows.filter(r=>r.isGriffin);
+  const bkCurr=currRows.filter(r=>r.isBrice);
+  const gmLast=lastRows.filter(r=>r.isGriffin);
+  const bkLast=lastRows.filter(r=>r.isBrice);
+
+  const gmCS=calcOppStats(currRows,currMk,'gm');
+  const bkCS=calcOppStats(currRows,currMk,'bk');
+  const gmLS=calcOppStats(lastRows,lastMk,'gm');
+  const bkLS=calcOppStats(lastRows,lastMk,'bk');
+
+  const CURR={
+    gm:{sales:gmCS.rev,jobs:gmCurr.length,sold:gmCS.sold,opps:gmCS.opps,cr:gmCS.cr,tk:gmCS.tk,pv:'from report'},
+    bk:{sales:bkCS.rev,jobs:bkCurr.length,sold:bkCS.sold,opps:bkCS.opps,cr:bkCS.cr,tk:bkCS.tk,pv:'from report'}
+  };
+  const LAST={
+    gm:{sales:gmLS.rev,jobs:gmLast.length,sold:gmLS.sold,cr:gmLS.cr,tk:gmLS.tk},
+    bk:{sales:bkLS.rev,jobs:bkLast.length,sold:bkLS.sold,cr:bkLS.cr,tk:bkLS.tk}
+  };
+
+  // Daily buckets — count est>0 jobs by completion date (best proxy for day-level activity)
+  const dailyBuckets={};
+  currRows.forEach(r=>{
+    if(r.est<=0)return;
+    const dk2=`${String(r.date.getMonth()+1).padStart(2,'0')}/${String(r.date.getDate()).padStart(2,'0')}`;
+    if(!dailyBuckets[dk2])dailyBuckets[dk2]={gm:0,bk:0};
+    if(r.isGriffin)dailyBuckets[dk2].gm+=r.est;
+    if(r.isBrice)dailyBuckets[dk2].bk+=r.est;
+  });
+  const DAILY_LBL=Object.keys(dailyBuckets).sort();
+  const GM_DAILY=DAILY_LBL.map(k=>dailyBuckets[k].gm);
+  const BK_DAILY=DAILY_LBL.map(k=>dailyBuckets[k].bk);
+
+  // History — months from scorecard (oppData no longer has .byMonth)
+  const allMks=[...Object.keys(scorecardData.byMonth)].sort();
+
+  const BK_HIST=[], GM_HIST=[];
+  allMks.forEach(mk=>{
+    const isCurr=mk===currMk;
+    const label=moLabel(mk,isCurr);
+    const rows=scorecardData.byMonth[mk]||[];
+
+    const bkS=calcOppStats(rows,mk,'bk');
+    const bkR=rows.filter(r=>r.isBrice);
+    if(bkR.length>0||bkS.opps>0){
+      BK_HIST.push({l:label,jobs:bkR.length,rev:bkS.rev,sold:bkS.sold||null,cr:bkS.opps>0?bkS.cr:null,tk:bkS.tk||null});
+    }
+    const gmS=calcOppStats(rows,mk,'gm');
+    const gmR=rows.filter(r=>r.isGriffin);
+    if(gmR.length>0||gmS.opps>0){
+      GM_HIST.push({l:label,jobs:gmR.length,rev:gmS.rev,sold:gmS.sold||null,cr:gmS.opps>0?gmS.cr:null,tk:gmS.tk||null});
+    }
+  });
+
+  // Job detail tables for current month
+  const {soldJobMap}=oppData;
+  const fmtD=d=>`${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
+  const GM_JOBS=gmCurr.map(r=>{
+    const sj=soldJobMap[r.job]||{};
+    return{j:r.job,d:fmtD(r.date),e:r.est,s:sj.rev||0,pv:r.pv,ok:!!(sj.gm||sj.bk)};
+  }).sort((a,b)=>b.s-a.s);
+  const BK_JOBS=bkCurr.map(r=>{
+    const sj=soldJobMap[r.job]||{};
+    return{j:r.job,d:fmtD(r.date),e:r.est,s:sj.rev||0,pv:r.pv,ok:!!(sj.gm||sj.bk)};
+  }).sort((a,b)=>b.s-a.s);
+
+  const[yr,mo]=currMk.split('-').map(Number);
+  const month=`${MO[mo-1]} ${yr}`;
+  return{month,WD_EL,WD_TOT,CURR,LAST,DAILY_LBL,GM_DAILY,BK_DAILY,BK_HIST,GM_HIST,GM_JOBS,BK_JOBS,fromFiles:true};
+}
+
+/* ── FILE HANDLING ───────────────────────────────────────────────── */
+let _scorecardData=null, _oppData=null, _fileNames=[];
+
+async function readXlsx(file){
+  const buf=await file.arrayBuffer();
+  const wb=XLSX.read(new Uint8Array(buf),{type:'array',cellDates:true});
+  const ws=wb.Sheets[wb.SheetNames[0]];
+  return XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+}
+
+async function processFiles(files){
+  if(!window.XLSX){showToast('⚠ SheetJS library not loaded — try refreshing.','var(--warn)');return;}
+  console.group('📊 ST Report Parser — Debug');
+  const fileArr=Array.from(files);
+  const xlsxFiles=fileArr.filter(f=>f.name.endsWith('.xlsx')||f.name.endsWith('.xls'));
+  if(!xlsxFiles.length){showToast('No .xlsx files found — please drop the ST reports.','var(--warn)');return;}
+
+  showToast('⏳ Parsing reports…','var(--muted)');
+
+  let newScorecardData=_scorecardData, newOppData=_oppData;
+  const newNames=[..._fileNames];
+  let errors=[];
+
+  for(const file of xlsxFiles){
+    try{
+      const rows=await readXlsx(file);
+      if(!rows.length){errors.push(`${file.name}: empty`);continue;}
+      console.log(`\n📄 File: ${file.name}`);
+      console.log('  Headers:', rows[0].map(h=>(h||'').toString().trim()).filter(Boolean));
+      console.log('  Total rows (excl header):', rows.length-1);
+      const type=detectFileType(rows[0]);
+      console.log('  Detected type:', type||'UNKNOWN');
+
+      if(type==='scorecard'){
+        // Debug: show unique tech names found
+        const hdrs=rows[0].map(h=>(h||'').toString().trim());
+        const iTech=hdrs.indexOf('Primary Technician');
+        const iSales=hdrs.indexOf('Jobs Estimate Sales Subtotal');
+        const iDate=hdrs.indexOf('Completion Date');
+        console.log('  Column indices — Tech:',iTech,'Sales:',iSales,'Date:',iDate);
+        if(iTech>=0){
+          const techCounts={};
+          rows.slice(1).forEach(r=>{
+            const t=(r[iTech]||'').toString().trim();
+            if(t)techCounts[t]=(techCounts[t]||0)+1;
+          });
+          console.log('  Tech name counts:', techCounts);
+        }
+        newScorecardData=parseScorecard(rows);
+        // Debug: show monthly row counts for Brice and Griffin
+        console.log('  Revenue column:', newScorecardData.salesColName);
+        console.log('  Months parsed:');
+        const today=new Date(), currMkD=moKey(today);
+        Object.entries(newScorecardData.byMonth).sort().forEach(([mk,arr])=>{
+          const bk=arr.filter(r=>r.isBrice);
+          const gm=arr.filter(r=>r.isGriffin);
+          const bkRev=bk.reduce((a,r)=>a+r.sales,0);
+          const gmRev=gm.reduce((a,r)=>a+r.sales,0);
+          const bkZ=bk.filter(r=>r.sales===0).length;
+          console.log(`    ${mk}: BK ${bk.length} jobs $${bkRev.toFixed(0)} (${bkZ} zero-$) | GM ${gm.length} jobs $${gmRev.toFixed(0)}`);
+          // For current month, dump first few Brice rows so we can see raw values
+          if(mk===currMkD&&bk.length>0){
+            console.log(`    ↳ BK sample rows for ${mk}:`);
+            bk.slice(0,5).forEach((r,i)=>console.log(`      [${i}] Job:${r.job} Tech:"${r.tech}" Date:${r.date.toLocaleDateString()} Sales:${r.sales} Est:${r.est}`));
+          }
+        });
+        if(!newNames.includes('scorecard'))newNames.push('scorecard');
+        newNames._scorecardName=file.name;
+
+      }else if(type==='opportunity'){
+        newOppData=parseOpportunity(rows);
+        console.log('  Revenue by sold month:');
+        Object.entries(newOppData.revByMonth).sort().forEach(([mk,mo])=>{
+          console.log(`    ${mk}: BK $${mo.bk.toFixed(0)} | GM $${mo.gm.toFixed(0)}`);
+        });
+        console.log('  Sold job map entries:', Object.keys(newOppData.soldJobMap).length);
+        if(!newNames.includes('opportunity'))newNames.push('opportunity');
+        newNames._oppName=file.name;
+      }else{
+        console.warn('  ⚠ Not recognized as a known ST report');
+        errors.push(`${file.name}: not a recognized ST report`);
+      }
+    }catch(e){
+      console.error(`  ✗ Error parsing ${file.name}:`, e);
+      errors.push(`${file.name}: ${e.message}`);
+    }
+  }
+  console.groupEnd();
+
+  if(errors.length){showToast('⚠ '+errors[0],'var(--warn)');return;}
+
+  _scorecardData=newScorecardData;
+  _oppData=newOppData;
+  _fileNames=newNames;
+
+  if(!_scorecardData&&!_oppData){
+    showToast('⚠ No ST reports detected in dropped files.','var(--warn)');
+    return;
+  }
+  if(_scorecardData&&!_oppData){
+    showToast('✓ Scorecard loaded — drop the Opportunity Follow Up report too for close rates.','var(--good)');
+    // Build partial data with empty opp
+    const emptyOpp={byMonth:{}};
+    const D=buildDataFromFiles(_scorecardData,emptyOpp);
+    D.fromFiles=true;
+    updateBadge(D);
+    updateUploadUI();
+    render(D);
+    return;
+  }
+  if(!_scorecardData&&_oppData){
+    showToast('✓ Opportunity report loaded — drop the Elect Sales Scorecard too for full data.','var(--good)');
+    const emptyScorecard={byMonth:{}};
+    const D=buildDataFromFiles(emptyScorecard,_oppData);
+    D.fromFiles=true;
+    updateBadge(D);
+    updateUploadUI();
+    render(D);
+    return;
+  }
+
+  // Both files present
+  const D=buildDataFromFiles(_scorecardData,_oppData);
+  updateBadge(D);
+  updateUploadUI();
+  render(D);
+  showToast('✓ Both reports loaded — scorecard updated.','var(--good)');
+}
+
+function updateBadge(D){
+  const badge=$('live-badge');
+  if(D.fromFiles){
+    badge.className='live-badge is-file';
+    badge.textContent='● File Data';
+    badge.title='Data loaded from ST Excel exports';
+  }else if(D.live){
+    badge.className='live-badge is-live';
+    badge.textContent='● LIVE';
+    badge.title='Data loaded from Google Sheets';
+  }else{
+    badge.className='live-badge is-cached';
+    badge.textContent='◎ Cached';
+    badge.title='Using cached data — upload ST reports or publish Google Sheets';
+  }
+}
+
+function updateUploadUI(){
+  const hasFiles=_scorecardData||_oppData;
+  const loaded=$('file-status-loaded');
+  const btn=$('upload-btn');
+  const prompt=$('upload-prompt-ov');
+  if(hasFiles){
+    const parts=[];
+    if(_fileNames._scorecardName)parts.push('Scorecard');
+    if(_fileNames._oppName)parts.push('Opp. Report');
+    $('file-status-txt').textContent=parts.join(' + ')||'Files loaded';
+    loaded.style.display='flex';
+    btn.textContent='↑ Re-Upload';
+    if(prompt)prompt.classList.add('hidden');
+  }else{
+    loaded.style.display='none';
+    btn.textContent='↑ Upload ST Reports';
+    if(prompt)prompt.classList.remove('hidden');
+  }
+}
+
+function clearFiles(){
+  _scorecardData=null;
+  _oppData=null;
+  _fileNames=[];
+  updateUploadUI();
+  showToast('Files cleared — reloading from Sheets/cache…','var(--muted)');
+  init(true); // re-init without files
+}
+
+function setupDropZone(){
+  const overlay=$('drop-overlay');
+  let dragCount=0;
+  document.addEventListener('dragenter',e=>{
+    e.preventDefault();
+    dragCount++;
+    if(dragCount===1)overlay.classList.add('active');
+  });
+  document.addEventListener('dragleave',()=>{
+    dragCount--;
+    if(dragCount<=0){dragCount=0;overlay.classList.remove('active');}
+  });
+  document.addEventListener('dragover',e=>e.preventDefault());
+  document.addEventListener('drop',e=>{
+    e.preventDefault();
+    dragCount=0;
+    overlay.classList.remove('active');
+    if(e.dataTransfer.files.length)processFiles(e.dataTransfer.files);
+  });
+  $('file-input').addEventListener('change',e=>{
+    if(e.target.files.length)processFiles(e.target.files);
+    e.target.value=''; // allow re-selecting same file
+  });
+}
+
+/* ── CHART REGISTRY ──────────────────────────────────────────────── */
+let _charts=[];
+function mkBar(id,labels,datasets,opts={}){
+  const c=new Chart($(id),{type:'bar',data:{labels,datasets},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:opts.legend??{display:false},tooltip:{...TT,...(opts.tt||{})}},
+      scales:{x:{...AX,...(opts.xOpts||{})},y:{...AX,...(opts.yOpts||{})}}}});
+  _charts.push(c);return c;
+}
+function mkLine(id,labels,datasets,opts={}){
+  const c=new Chart($(id),{type:'line',data:{labels,datasets},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:opts.legend??{display:false},tooltip:{...TT,...(opts.tt||{})}},
+      scales:{x:{...AX,...(opts.xOpts||{})},y:{...AX,...(opts.yOpts||{})}}}});
+  _charts.push(c);return c;
+}
+function destroyCharts(){_charts.forEach(c=>c.destroy());_charts=[];}
+
+/* ── RENDER ──────────────────────────────────────────────────────── */
+function render(D){
+  const{month,WD_EL,WD_TOT,CURR,LAST,DAILY_LBL,GM_DAILY,BK_DAILY,BK_HIST,GM_HIST,
+        GM_JOBS,BK_JOBS,fromFiles,live}=D;
+  const PF=WD_EL>0?WD_TOT/WD_EL:1;
+  const PROJ={
+    gm:{sales:Math.round(CURR.gm.sales*PF),jobs:Math.round(CURR.gm.jobs*PF),sold:Math.round(CURR.gm.sold*PF),cr:CURR.gm.cr,tk:CURR.gm.tk},
+    bk:{sales:Math.round(CURR.bk.sales*PF),jobs:Math.round(CURR.bk.jobs*PF),sold:Math.round(CURR.bk.sold*PF),cr:CURR.bk.cr,tk:CURR.bk.tk}
+  };
+  const WD_REM=WD_TOT-WD_EL;
+  const pct=(WD_EL/WD_TOT*100).toFixed(1);
+
+  // Source label
+  const srcLabel=fromFiles?'ST Excel exports':live?'Google Sheets':'cached data';
+  const noteBase=`${WD_EL} of ${WD_TOT} working days elapsed · data from ${srcLabel}`;
+
+  // Header
+  const today=new Date();
+  $('hdr-date').textContent=today.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+  updateBadge(D);
+
+  // Progress bar
+  const [moName]=month.split(' ');
+  $('pace-title').textContent=month+' Progress';
+  $('pace-frac').textContent=`${WD_EL} of ${WD_TOT} working days`;
+  $('pace-pct').textContent=`${pct}% complete · ${WD_REM} working days remain`;
+  $('pace-mo-start').textContent=moName+' 1';
+  $('pace-mo-end').textContent=moName+' 30';
+  requestAnimationFrame(()=>{ $('pace-fill').style.width=pct+'%'; });
+
+  // Notes
+  $('ov-note').textContent=`★ ${noteBase}`;
+  const repNote=fromFiles?'Current and last month from ST Excel exports · Projection: linear pace.':'★ Current month via Google Sheets/cache · Last month from Excel · Projection: linear pace.';
+  $('gm-period-note').textContent=repNote;
+  $('bk-period-note').textContent=repNote;
+
+  // Table headers
+  const hd=DAILY_LBL.length>0?`${DAILY_LBL[0]}–${DAILY_LBL[DAILY_LBL.length-1]}★`:'Current★';
+  $('gm-cmp-hd1').textContent=hd;
+  $('bk-cmp-hd1').textContent=hd;
+
+  // tinfo (data span)
+  const gmSpan=GM_HIST.length>0?`${GM_HIST[0].l.replace('★','')}–present`:'Starting Jul 2026';
+  const bkSpan=BK_HIST.length>0?`${BK_HIST.length} months`:'13 months of data';
+  $('gm-tinfo').textContent=gmSpan;
+  $('bk-tinfo').textContent=bkSpan;
+  const hyBkSpan=BK_HIST.length+' months';
+  $('hy-bk-span').textContent=hyBkSpan;
+  $('hy-bk-span2').textContent=hyBkSpan;
+
+  // Hero stats
+  countUp($('h-gm-s'),CURR.gm.sales,{prefix:'$',dur:1200});
+  $('h-gm-cr').textContent=CURR.gm.cr+'%';
+  $('h-gm-tk').textContent=f$0(CURR.gm.tk);
+  $('h-gm-j').textContent=CURR.gm.jobs;
+  $('h-gm-o').textContent=CURR.gm.sold+' of '+CURR.gm.opps;
+  $('h-gm-tag').textContent='Proj. '+moName+': '+f$0(PROJ.gm.sales);
+
+  countUp($('h-bk-s'),CURR.bk.sales,{prefix:'$',dur:1200});
+  $('h-bk-cr').textContent=CURR.bk.cr+'%';
+  $('h-bk-tk').textContent=f$0(CURR.bk.tk);
+  $('h-bk-j').textContent=CURR.bk.jobs;
+  $('h-bk-o').textContent=CURR.bk.sold+' of '+CURR.bk.opps;
+  const bkDelta=PROJ.bk.sales-LAST.bk.sales;
+  $('h-bk-tag').textContent='Proj. '+moName+': '+f$0(PROJ.bk.sales)+(bkDelta>=0?' ↑':' ↓');
+
+  // Donut stats
+  $('gm-d-opps').textContent=CURR.gm.opps;
+  $('gm-d-sold').textContent=CURR.gm.sold;
+  $('gm-d-cr').textContent=CURR.gm.cr+'%';
+  $('gm-d-src').textContent=fromFiles?'Opportunity Report':'★ ServiceTitan';
+  $('bk-d-opps').textContent=CURR.bk.opps;
+  $('bk-d-sold').textContent=CURR.bk.sold;
+  $('bk-d-cr').textContent=CURR.bk.cr+'%';
+  $('bk-d-src').textContent=fromFiles?'Opportunity Report':'★ ServiceTitan';
+
+  // Job table source labels
+  const jtSrc=fromFiles?'ST Excel export (auto-parsed)':'Cached data';
+  $('gm-jt-src').textContent=jtSrc;
+  $('bk-jt-src').textContent=jtSrc;
+
+  // Comparison tables
+  function buildCmp(id,cur,las,prj){
+    $(id).innerHTML=[
+      ['Total Sales',   f$(cur.sales),   f$0(las.sales),  f$0(prj.sales)],
+      ['Jobs Completed',cur.jobs,         las.jobs,         '~'+prj.jobs],
+      ['Opps / Sold',   cur.sold+' of '+cur.opps+' opps',las.sold+' of '+las.jobs+' jobs','~'+prj.sold],
+      ['Close Rate',    cur.cr+'%',       las.cr+'%',       prj.cr+'%'],
+      ['Avg Ticket',    f$0(cur.tk),      f$0(las.tk),      f$0(prj.tk)],
+      ['Est / Job',     cur.epj!=null?cur.epj:'—', las.epj!=null?las.epj:'—', cur.epj!=null?cur.epj:'—'],
+    ].map(r=>`<tr><td>${r[0]}</td><td class="cv">${r[1]}</td><td class="lv">${r[2]}</td><td class="pv">${r[3]}</td></tr>`).join('');
+  }
+  buildCmp('gm-cmp',CURR.gm,LAST.gm,PROJ.gm);
+  buildCmp('bk-cmp',CURR.bk,LAST.bk,PROJ.bk);
+
+  // Period cards
+  function mr(lbl,val,sub=''){
+    return`<div class="mr"><span class="mr-lbl">${lbl}</span><div class="mr-rhs"><span class="mr-val">${val}</span>${sub?`<span class="mr-sub">${sub}</span>`:''}</div></div>`;
+  }
+  function buildPRow(id,cur,las,prj,gl){
+    $(id).innerHTML=`
+    <div class="pc pc-curr ${gl}">
+      <div class="pc-hdr cur">Current · ${fromFiles?'ST Export':'★ ServiceTitan'}</div>
+      ${mr('Total Sales',f$(cur.sales))}${mr('Jobs Completed',cur.jobs)}
+      ${mr('Close Rate',cur.cr+'%',cur.sold+' of '+cur.opps+' opps')}
+      ${mr('Avg Ticket',f$0(cur.tk))}${mr('Est / Job',cur.epj!=null?cur.epj:'—')}${mr('Price Variation',cur.pv)}
+    </div>
+    <div class="pc">
+      <div class="pc-hdr lst">Last Month · ${fromFiles?'ST Export':'Excel'}</div>
+      ${mr('Total Sales',f$0(las.sales))}${mr('Jobs Completed',las.jobs)}
+      ${mr('Close Rate',las.cr+'%',las.sold+' of '+las.jobs+' jobs')}
+      ${mr('Avg Ticket',f$0(las.tk))}${mr('Est / Job',las.epj!=null?las.epj:'—')}${mr('Price Variation','—')}
+    </div>
+    <div class="pc pc-proj">
+      <div class="pc-hdr prj">${moName} Projected ↗</div>
+      ${mr('Total Sales',f$0(prj.sales),WD_EL+' of '+WD_TOT+' working days')}
+      ${mr('Jobs Completed','~'+prj.jobs)}${mr('Close Rate',prj.cr+'%','same rate')}
+      ${mr('Avg Ticket',f$0(prj.tk))}${mr('Est / Job',cur.epj!=null?cur.epj:'—')}${mr('Price Variation',cur.pv)}
+    </div>`;
+  }
+  buildPRow('gm-prow',CURR.gm,LAST.gm,PROJ.gm,'glow-g');
+  buildPRow('bk-prow',CURR.bk,LAST.bk,PROJ.bk,'glow-b');
+
+  // Job detail tables
+  function buildJobTbl(id,jobs){
+    if(!jobs||!jobs.length){
+      $(id).innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px">No job data — upload the Elect Sales Scorecard report</td></tr>';
+      return;
+    }
+    $(id).innerHTML=jobs.map(j=>`<tr>
+      <td><code style="font-size:.78rem">#${j.j}</code></td>
+      <td>${j.d}</td><td class="r">${j.e||'—'}</td>
+      <td class="r">${j.s>0?f$(j.s):'—'}</td>
+      <td class="r">${j.pv>0?`<span class="badge bw">+${j.pv}%</span>`:'—'}</td>
+      <td>${j.ok?`<span class="badge bg">✓ Sold</span>`:`<span class="dim">No sale</span>`}</td>
+    </tr>`).join('');
+  }
+  buildJobTbl('gm-jt', GM_JOBS||[]);
+  buildJobTbl('bk-jt', BK_JOBS||[]);
+
+  // History tables
+  function buildHtb(id,data){
+    $(id).innerHTML=data.map(r=>`<tr${r.l.includes('★')?' class="curr-row"':''}>
+      <td>${r.l}</td><td class="r">${r.jobs}</td><td class="r">${f$0(r.rev)}</td>
+      <td class="r">${r.sold!=null?r.sold:'<span class="na">—</span>'}</td>
+      <td class="r">${r.cr!=null?r.cr+'%':'<span class="na">—</span>'}</td>
+      <td class="r">${r.tk!=null?f$0(r.tk):'<span class="na">—</span>'}</td>
+      <td class="r">${r.epj!=null?r.epj.toFixed(2):'<span class="na">—</span>'}</td>
+    </tr>`).join('');
+  }
+  buildHtb('bk-htb',BK_HIST);
+  buildHtb('gm-htb',GM_HIST);
+
+  // Close rate trend data
+  const crRows=BK_HIST.filter(r=>r.cr!=null);
+  const crLbls=crRows.map(r=>r.l.replace('★','').trim());
+  const crBK=crRows.map(r=>r.cr);
+  const crGM=crLbls.map(mo=>{
+    const gRow=GM_HIST.find(r=>r.l.replace('★','').trim()===mo);
+    return gRow&&gRow.cr!=null?gRow.cr:null;
+  });
+
+  // Avg ticket trend
+  const tkRows=BK_HIST.filter(r=>r.tk!=null);
+  const tkLbls=tkRows.map(r=>r.l.replace('★','').trim());
+  const tkBK=tkRows.map(r=>r.tk);
+
+  /* ── CHARTS ── */
+  destroyCharts();
+  const BK_LBL=BK_HIST.map(r=>r.l.replace('★','').trim());
+  const BK_REV=BK_HIST.map(r=>r.rev);
+  const pkRev=BK_REV.length?Math.max(...BK_REV):0;
+
+  // Overview daily
+  if(DAILY_LBL.length){
+    mkBar('ov-daily',DAILY_LBL,[
+      {label:'Griffin M',data:GM_DAILY,backgroundColor:C.g+'cc',borderColor:C.g,borderWidth:1.5,borderRadius:4,borderSkipped:false},
+      {label:'Brice K',  data:BK_DAILY,backgroundColor:C.b+'cc',borderColor:C.b,borderWidth:1.5,borderRadius:4,borderSkipped:false}
+    ],{
+      legend:{position:'top',labels:{usePointStyle:true,pointStyle:'circle',boxWidth:9,padding:16,font:{size:12}}},
+      tt:{callbacks:{label:ctx=>`  ${ctx.dataset.label}: ${f$(ctx.parsed.y||0)}`}},
+      yOpts:{ticks:{...AX.ticks,callback:fk}}
+    });
+  }
+
+  // Overview close rate
+  if(crLbls.length){
+    mkBar('ov-cr',crLbls,[
+      {label:'Griffin M',data:crGM,backgroundColor:C.g+'cc',borderColor:C.g,borderWidth:1.5,borderRadius:4,borderSkipped:false},
+      {label:'Brice K',  data:crBK,backgroundColor:C.b+'cc',borderColor:C.b,borderWidth:1.5,borderRadius:4,borderSkipped:false}
+    ],{
+      legend:{position:'top',labels:{usePointStyle:true,pointStyle:'circle',boxWidth:9,padding:16,font:{size:12}}},
+      tt:{callbacks:{label:ctx=>ctx.parsed.y!=null?`  ${ctx.dataset.label}: ${ctx.parsed.y}%`:'  No data'}},
+      yOpts:{...AX,min:0,max:80,ticks:{...AX.ticks,callback:v=>v+'%'}}
+    });
+  }
+
+  // Overview Brice revenue
+  if(BK_LBL.length){
+    mkBar('ov-rev',BK_LBL,[
+      {label:'Revenue',data:BK_REV,backgroundColor:BK_REV.map(v=>v===pkRev?C.b:C.b+'77'),borderColor:C.b,borderWidth:1.5,borderRadius:4,borderSkipped:false}
+    ],{
+      tt:{callbacks:{label:ctx=>`  Brice K: ${f$(ctx.parsed.y)}`}},
+      xOpts:{...AX,ticks:{...AX.ticks,maxRotation:45}},
+      yOpts:{...AX,ticks:{...AX.ticks,callback:fk}}
+    });
+  }
+
+  // Griffin donut
+  const gmCR=CURR.gm.cr;
+  _charts.push(new Chart($('gm-donut'),{type:'doughnut',
+    data:{datasets:[{data:[gmCR,100-gmCR],backgroundColor:[C.g,C.gr+'88'],borderWidth:0}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'72%',
+      animation:{duration:1400,easing:'easeOutQuart'},
+      plugins:{legend:{display:false},tooltip:{enabled:false},centerText:{pct:gmCR.toFixed(1),sub:'close rate'}}}
+  }));
+
+  // Griffin daily
+  if(GM_DAILY.length){
+    const gmPk=Math.max(...GM_DAILY);
+    mkBar('gm-daily',DAILY_LBL,[
+      {label:'Sales Won',data:GM_DAILY,backgroundColor:GM_DAILY.map(v=>v===gmPk?C.g:C.g+'88'),borderColor:C.g,borderWidth:1.5,borderRadius:4,borderSkipped:false}
+    ],{tt:{callbacks:{label:ctx=>`  ${f$(ctx.parsed.y||0)}`}},yOpts:{...AX,ticks:{...AX.ticks,callback:fk}}});
+  }
+
+  // Griffin monthly rev + jobs
+  const gmRevData=GM_HIST.map(r=>r.rev);
+  const gmJobsData=GM_HIST.map(r=>r.jobs);
+  const gmLbls=GM_HIST.map(r=>r.l.replace('★','').trim());
+  if(gmLbls.length){
+    const gmRevColors=gmRevData.map((v,i)=>i===gmRevData.length-1?C.g+'cc':C.g+'77');
+    mkBar('gm-rev',gmLbls,[{label:'Revenue',data:gmRevData,backgroundColor:gmRevColors,borderColor:C.g,borderWidth:1.5,borderRadius:6,borderSkipped:false}],
+      {tt:{callbacks:{label:ctx=>`  Revenue: ${f$(ctx.parsed.y)}`}},yOpts:{...AX,ticks:{...AX.ticks,callback:fk}}});
+    mkBar('gm-jobs',gmLbls,[{label:'Jobs',data:gmJobsData,backgroundColor:gmRevColors,borderColor:C.g,borderWidth:1.5,borderRadius:6,borderSkipped:false}],
+      {tt:{callbacks:{label:ctx=>`  Jobs: ${ctx.parsed.y}`}}});
+  }
+
+  // Brice donut
+  const bkCR=CURR.bk.cr;
+  _charts.push(new Chart($('bk-donut'),{type:'doughnut',
+    data:{datasets:[{data:[bkCR,100-bkCR],backgroundColor:[C.b,C.gr+'88'],borderWidth:0}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'72%',
+      animation:{duration:1400,easing:'easeOutQuart'},
+      plugins:{legend:{display:false},tooltip:{enabled:false},centerText:{pct:bkCR.toFixed(1),sub:'close rate'}}}
+  }));
+
+  // Brice daily
+  if(BK_DAILY.length){
+    const bkPk=Math.max(...BK_DAILY);
+    mkBar('bk-daily',DAILY_LBL,[
+      {label:'Sales Won',data:BK_DAILY,backgroundColor:BK_DAILY.map(v=>v===bkPk?C.b:C.b+'88'),borderColor:C.b,borderWidth:1.5,borderRadius:4,borderSkipped:false}
+    ],{tt:{callbacks:{label:ctx=>`  ${f$(ctx.parsed.y||0)}`}},yOpts:{...AX,ticks:{...AX.ticks,callback:fk}}});
+  }
+
+  // Brice CR line
+  if(crLbls.length){
+    mkLine('bk-cr',crLbls,[{
+      label:'Close Rate',data:crBK,borderColor:C.b,borderWidth:2.5,pointBackgroundColor:C.b,
+      pointRadius:5,pointHoverRadius:7,fill:true,backgroundColor:C.bg_b,tension:.3
+    }],{tt:{callbacks:{label:ctx=>`  Close Rate: ${ctx.parsed.y}%`}},yOpts:{...AX,min:0,max:80,ticks:{...AX.ticks,callback:v=>v+'%'}}});
+  }
+
+  // History charts
+  if(BK_LBL.length){
+    const BK_JD=BK_HIST.map(r=>r.jobs), pkJ=Math.max(...BK_JD);
+    mkBar('hy-rev',BK_LBL,[{label:'Revenue',data:BK_REV,backgroundColor:BK_REV.map(v=>v===pkRev?C.b:C.b+'77'),borderColor:C.b,borderWidth:1.5,borderRadius:4,borderSkipped:false}],
+      {tt:{callbacks:{label:ctx=>`  Revenue: ${f$(ctx.parsed.y)}`}},xOpts:{...AX,ticks:{...AX.ticks,maxRotation:45}},yOpts:{...AX,ticks:{...AX.ticks,callback:fk}}});
+    mkBar('hy-jobs',BK_LBL,[{label:'Jobs',data:BK_JD,backgroundColor:BK_JD.map(v=>v===pkJ?C.b:C.b+'77'),borderColor:C.b,borderWidth:1.5,borderRadius:4,borderSkipped:false}],
+      {tt:{callbacks:{label:ctx=>`  Jobs: ${ctx.parsed.y}`}},xOpts:{...AX,ticks:{...AX.ticks,maxRotation:45}}});
+  }
+  if(crLbls.length){
+    mkLine('hy-cr',crLbls,[{label:'Brice K',data:crBK,borderColor:C.b,borderWidth:2.5,pointBackgroundColor:C.b,pointRadius:5,pointHoverRadius:7,fill:true,backgroundColor:C.bg_b,tension:.3}],
+      {tt:{callbacks:{label:ctx=>`  Close Rate: ${ctx.parsed.y}%`}},yOpts:{...AX,min:0,max:80,ticks:{...AX.ticks,callback:v=>v+'%'}}});
+  }
+  if(tkLbls.length){
+    mkLine('hy-tk',tkLbls,[{label:'Avg Ticket',data:tkBK,borderColor:C.b,borderWidth:2.5,pointBackgroundColor:C.b,pointRadius:5,pointHoverRadius:7,fill:true,backgroundColor:C.bg_b,tension:.3}],
+      {tt:{callbacks:{label:ctx=>`  Avg Ticket: ${f$(ctx.parsed.y)}`}},yOpts:{...AX,ticks:{...AX.ticks,callback:fk}}});
+  }
+}
+
+/* ── GOOGLE SHEETS FETCH (secondary fallback) ────────────────────── */
+async function fetchSheetData(){
+  const[dR,dayR,hR]=await Promise.all([
+    fetch(CSV(SHEET_IDS.data)),
+    fetch(CSV(SHEET_IDS.daily)),
+    fetch(CSV(SHEET_IDS.history))
+  ]);
+  if(!dR.ok||!dayR.ok||!hR.ok)throw new Error('not ok');
+  const[dT,dayT,hT]=await Promise.all([dR.text(),dayR.text(),hR.text()]);
+  if(dT.includes('<html')||dT.includes('<!DOCTYPE'))throw new Error('not published');
+  const D=csvToMap(dT);
+  const CURR={
+    gm:{sales:num(D.gm_sales),jobs:int(D.gm_jobs),sold:int(D.gm_sold),opps:int(D.gm_opps),
+        cr:num(D.gm_cr),tk:num(D.gm_tk),epj:D.gm_epj?num(D.gm_epj):null,pv:(D.gm_pv||'0')+'%'},
+    bk:{sales:num(D.bk_sales),jobs:int(D.bk_jobs),sold:int(D.bk_sold),opps:int(D.bk_opps),
+        cr:num(D.bk_cr),tk:num(D.bk_tk),epj:D.bk_epj?num(D.bk_epj):null,pv:(D.bk_pv||'0')+'%'}
+  };
+  const LAST={
+    gm:{sales:num(D.last_gm_sales),jobs:int(D.last_gm_jobs),sold:int(D.last_gm_sold),
+        cr:num(D.last_gm_cr),tk:num(D.last_gm_tk),epj:D.last_gm_epj?num(D.last_gm_epj):null},
+    bk:{sales:num(D.last_bk_sales),jobs:int(D.last_bk_jobs),sold:int(D.last_bk_sold),
+        cr:num(D.last_bk_cr),tk:num(D.last_bk_tk),epj:D.last_bk_epj?num(D.last_bk_epj):null}
+  };
+  const dayRows=parseCSV(dayT).slice(1).filter(r=>r[0]);
+  const DAILY_LBL=dayRows.map(r=>r[0]);
+  const GM_DAILY=dayRows.map(r=>num(r[1]));
+  const BK_DAILY=dayRows.map(r=>num(r[2]));
+  const histRows=parseCSV(hT).slice(1).filter(r=>r[0]);
+  const BK_HIST=[],GM_HIST=[];
+  histRows.forEach(r=>{
+    const[mo,gmS,gmJ,gmSold,gmCR,bkS,bkJ,bkSold,bkCR]=r;
+    if(!mo)return;
+    const bj=int(bkJ),bs=num(bkS);
+    BK_HIST.push({l:mo,jobs:bj,rev:bs,sold:bkSold?int(bkSold):null,cr:bkCR?num(bkCR):null,tk:bj>0?Math.round(bs/bj):null,epj:null});
+    if(gmS){const gj=int(gmJ),gs=num(gmS);GM_HIST.push({l:mo,jobs:gj,rev:gs,sold:gmSold?int(gmSold):null,cr:gmCR?num(gmCR):null,tk:gj>0?Math.round(gs/gj):null,epj:null});}
+  });
+  const{WD_EL,WD_TOT}=getWorkdayInfo();
+  return{month:D.month||FB.month,WD_EL:num(D.wd_elapsed,WD_EL),WD_TOT:num(D.wd_total,WD_TOT),
+         CURR,LAST,DAILY_LBL,GM_DAILY,BK_DAILY,BK_HIST,GM_HIST,
+         GM_JOBS:FB.GM_JOBS,BK_JOBS:FB.BK_JOBS,live:true};
+}
+
+/* ── INIT ────────────────────────────────────────────────────────── */
+async function init(skipFiles=false){
+  let data;
+  if(!skipFiles&&(_scorecardData||_oppData)){
+    // Files already loaded — use them
+    const sc=_scorecardData||{byMonth:{}};
+    const op=_oppData||{byMonth:{}};
+    data=buildDataFromFiles(sc,op);
+  }else{
+    // Try Google Sheets, fall back to hardcoded
+    try{
+      data=await Promise.race([
+        fetchSheetData(),
+        new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),5000))
+      ]);
+    }catch(e){
+      console.warn('Sheets unavailable, using fallback:',e.message);
+      const{WD_EL,WD_TOT}=getWorkdayInfo();
+      data={...FB,WD_EL,WD_TOT,live:false};
+    }
+    updateUploadUI(); // show upload prompt since no files loaded
+  }
+  render(data);
+  const loader=$('loader');
+  loader.style.opacity='0';
+  setTimeout(()=>loader.remove(),400);
+}
+
+setupDropZone();
+init();
+</script>
+</body>
+</html>
