@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>⚡ Electrical Sales Scorecard</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg:#efefed; --card:#fcfcfb; --card2:#f4f4f2; --card3:#eeeeed;
+      --border:#e1e0d9; --border2:#d0cfca;
+      --ink:#0b0b0b; --ink2:#52514e; --muted:#898781;
+      --griffin:#2a78d6; --griffin-lt:rgba(42,120,214,.09); --griffin-glow:rgba(42,120,214,.18);
+      --brice:#eb6834;   --brice-lt:rgba(235,104,52,.09);  --brice-glow:rgba(235,104,52,.18);
+      --proj:#1baf7a;    --proj-lt:rgba(27,175,122,.09);
+      --good:#006300;    --goodbg:#e4f2e4;
+      --warn:#9a4a00;    --warnbg:#fef0e0;
+      --gr-line:#e1e0d9;
+    }
+    @media(prefers-color-scheme:dark){:root{
+      --bg:#0d0d0c; --card:#1c1c1b; --card2:#242422; --card3:#2c2c2a;
+      --border:#2c2c2a; --border2:#3a3a37;
+      --ink:#ffffff; --ink2:#c3c2b7; --muted:#898781;
+      --griffin:#3987e5; --griffin-lt:rgba(57,135,229,.12); --griffin-glow:rgba(57,135,229,.25);
+      --brice:#d95926;   --brice-lt:rgba(217,89,38,.12);   --brice-glow:rgba(217,89,38,.25);
+      --proj:#199e70;    --proj-lt:rgba(25,158,112,.12);
+      --good:#0ca30c;    --goodbg:#0b250b;
+      --warn:#e08030;    --warnbg:#2a1500;
+      --gr-line:#2c2c2a;
+    }}
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink);min-height:100vh}
+
+    #loader{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:999;transition:opacity .3s}
+    .ld-inner{text-align:center}
+    .ld-icon{font-size:2rem;margin-bottom:10px;animation:livePulse 1s ease-in-out infinite}
+    .ld-txt{font-size:.875rem;color:var(--muted)}
+
+    .hdr{background:var(--card);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:60;backdrop-filter:blur(12px)}
+    .hdr-top{padding:12px 24px 0;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+    .hdr-top h1{font-size:.9375rem;font-weight:700;letter-spacing:-.01em}
+    .pill{font-size:.7rem;color:var(--muted);background:var(--card2);border:1px solid var(--border);border-radius:20px;padding:2px 9px;white-space:nowrap}
+    .live-badge{font-size:.7rem;font-weight:700;border-radius:20px;padding:2px 10px}
+    .live-badge.is-live{color:var(--good);background:var(--goodbg);animation:livePulse 2.5s ease-in-out infinite}
+    .live-badge.is-cached{color:var(--warn);background:var(--warnbg)}
+    .live-badge.is-loading{color:var(--muted);background:var(--card2);animation:livePulse 1s ease-in-out infinite}
+    @keyframes livePulse{0%,100%{opacity:1}50%{opacity:.55}}
+    .tabs{display:flex;padding:0 18px;margin-top:8px;overflow-x:auto;scrollbar-width:none}
+    .tabs::-webkit-scrollbar{display:none}
+    .tab{padding:9px 16px;border:none;background:transparent;cursor:pointer;font-size:.8125rem;font-weight:600;color:var(--muted);border-bottom:2.5px solid transparent;white-space:nowrap;display:flex;align-items:center;gap:6px;transition:color .15s,border-color .15s,background .15s}
+    .tab:hover{color:var(--ink2);background:var(--card2)}
+    .tab.on {color:var(--ink); border-bottom-color:var(--ink)}
+    .tab.gon{color:var(--griffin);border-bottom-color:var(--griffin)}
+    .tab.bon{color:var(--brice);  border-bottom-color:var(--brice)}
+    .tab.hon{color:var(--muted);  border-bottom-color:var(--muted)}
+    .tdot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+
+    .panel{display:none}.panel.on{display:block;animation:fadeIn .2s ease}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+    .page{padding:20px 24px 64px;max-width:1340px;margin:0 auto}
+
+    .slabel{font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:28px 0 9px;display:flex;align-items:center;gap:8px}
+    .slabel:first-child{margin-top:2px}
+    .slabel::after{content:'';flex:1;height:1px;background:var(--border)}
+    .note{font-size:.72rem;color:var(--muted);line-height:1.55;margin:-3px 0 12px}
+
+    .hero-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+    @media(max-width:680px){.hero-row{grid-template-columns:1fr}}
+    .hero-card{border:1px solid var(--border);border-radius:14px;padding:22px 24px;position:relative;overflow:hidden;transition:box-shadow .2s}
+    .hero-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+    .hg{background:linear-gradient(135deg,var(--griffin-lt) 0%,var(--card) 55%)}
+    .hg::before{background:var(--griffin)}
+    .hg:hover{box-shadow:0 0 0 1px var(--griffin),0 8px 32px var(--griffin-glow)}
+    .hb{background:linear-gradient(135deg,var(--brice-lt) 0%,var(--card) 55%)}
+    .hb::before{background:var(--brice)}
+    .hb:hover{box-shadow:0 0 0 1px var(--brice),0 8px 32px var(--brice-glow)}
+    .hero-name{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:8px;display:flex;align-items:center;gap:8px}
+    .st-chip{font-size:.65rem;background:var(--goodbg);color:var(--good);border-radius:4px;padding:1px 5px;font-weight:700}
+    .hero-num{font-size:3rem;font-weight:800;line-height:1;letter-spacing:-.03em;font-variant-numeric:tabular-nums;margin-bottom:12px}
+    .hg .hero-num{color:var(--griffin)}
+    .hb .hero-num{color:var(--brice)}
+    .hero-sub{display:flex;gap:18px;flex-wrap:wrap}
+    .hero-sub-item{display:flex;flex-direction:column;gap:2px}
+    .hero-sub-lbl{font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+    .hero-sub-val{font-size:.9375rem;font-weight:700;font-variant-numeric:tabular-nums}
+    .pace-tag{position:absolute;bottom:16px;right:18px;font-size:.7rem;color:var(--muted);background:var(--card2);border:1px solid var(--border);border-radius:6px;padding:3px 8px}
+
+    .pace-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 20px;margin-bottom:12px}
+    .pace-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+    .pace-title{font-size:.8125rem;font-weight:600}
+    .pace-frac{font-size:.72rem;color:var(--muted)}
+    .pace-bar{height:8px;background:var(--card3);border-radius:4px;overflow:hidden;margin-bottom:6px}
+    .pace-fill{height:100%;width:0;background:linear-gradient(90deg,var(--griffin) 0%,var(--brice) 100%);border-radius:4px;transition:width 1.2s ease-out}
+    .pace-bot{display:flex;justify-content:space-between;font-size:.68rem;color:var(--muted)}
+
+    .ov-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:0}
+    @media(max-width:820px){.ov-grid{grid-template-columns:1fr}}
+    .tblk{background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+    .tblk-hdr{padding:12px 16px;display:flex;align-items:center;gap:9px;border-bottom:1px solid var(--border)}
+    .tblk-hdr h2{font-size:.9375rem;font-weight:700}
+    .tblk-hdr .tinfo{margin-left:auto;font-size:.7rem;color:var(--muted)}
+    .dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+    .cmp-tbl{width:100%;border-collapse:collapse}
+    .cmp-tbl thead th{font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:8px 14px;border-bottom:1px solid var(--border);text-align:right}
+    .cmp-tbl thead th:first-child{text-align:left;width:36%}
+    .cmp-tbl .th-c{color:var(--ink2)}
+    .cmp-tbl .th-p{color:var(--proj)}
+    .cmp-tbl tbody tr:hover{background:var(--card2)}
+    .cmp-tbl tbody td{padding:9px 14px;font-size:.8125rem;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums;text-align:right}
+    .cmp-tbl tbody td:first-child{text-align:left;color:var(--ink2);font-weight:500}
+    .cmp-tbl tbody tr:last-child td{border-bottom:none}
+    .cv{font-weight:700;color:var(--ink)}
+    .lv{color:var(--ink2)}
+    .pv{color:var(--proj);font-weight:600}
+
+    .period-row{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px}
+    @media(max-width:700px){.period-row{grid-template-columns:1fr}}
+    .pc{background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+    .pc-curr{border-top:3px solid var(--tcolor)}
+    .pc-curr.glow-g{box-shadow:0 0 0 1px rgba(42,120,214,.25),0 8px 32px rgba(42,120,214,.12)}
+    .pc-curr.glow-b{box-shadow:0 0 0 1px rgba(235,104,52,.25),0 8px 32px rgba(235,104,52,.12)}
+    .pc-proj{border-top:3px solid var(--proj)}
+    .pc-hdr{padding:9px 14px;font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;background:var(--card2);border-bottom:1px solid var(--border)}
+    .pc-hdr.cur{color:var(--tcolor,var(--griffin))}
+    .pc-hdr.lst{color:var(--muted)}
+    .pc-hdr.prj{color:var(--proj)}
+    .mr{display:flex;justify-content:space-between;align-items:baseline;padding:9px 14px;border-bottom:1px solid var(--border);gap:8px}
+    .mr:last-child{border-bottom:none}
+    .mr-lbl{font-size:.72rem;color:var(--muted)}
+    .mr-rhs{text-align:right}
+    .mr-val{font-size:.9375rem;font-weight:700;font-variant-numeric:tabular-nums;display:block}
+    .mr-sub{font-size:.67rem;color:var(--muted)}
+
+    .chart-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px 20px;margin-bottom:14px}
+    .chart-card h3{font-size:.875rem;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+    .chart-card h3 .sub{font-size:.72rem;font-weight:400;color:var(--muted);margin-left:auto}
+    .ch{position:relative}
+    .ch-200{height:200px}
+    .ch-220{height:220px}
+    .ch-180{height:180px}
+    .chart-2col{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+    @media(max-width:700px){.chart-2col{grid-template-columns:1fr}}
+
+    .donut-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px 20px;margin-bottom:0;display:flex;flex-direction:column;align-items:center}
+    .donut-card h3{font-size:.875rem;font-weight:700;margin-bottom:12px;width:100%}
+    .donut-wrap{position:relative;width:160px;height:160px;margin:0 auto 12px}
+    .donut-stats{width:100%;border-top:1px solid var(--border);padding-top:12px;margin-top:4px}
+    .ds-row{display:flex;justify-content:space-between;font-size:.8rem;padding:4px 0}
+    .ds-lbl{color:var(--muted)}
+    .ds-val{font-weight:600;font-variant-numeric:tabular-nums}
+
+    .tcrd{background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:14px}
+    .tcrd-hdr{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+    .tcrd-hdr h3{font-size:.875rem;font-weight:700}
+    .tsub{font-size:.7rem;color:var(--muted)}
+    .twrap{overflow-x:auto}
+    table{width:100%;border-collapse:collapse;font-size:.8125rem}
+    thead th{padding:7px 14px;font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border);text-align:left;white-space:nowrap}
+    th.r,td.r{text-align:right}
+    tbody td{padding:9px 14px;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums}
+    tbody tr:last-child td{border-bottom:none}
+    tbody tr:hover{background:var(--card2)}
+    tbody tr.curr-row{background:var(--card2);font-weight:600}
+    .badge{display:inline-flex;align-items:center;font-size:.68rem;font-weight:600;padding:1px 6px;border-radius:3px}
+    .bg{background:var(--goodbg);color:var(--good)}
+    .bw{background:var(--warnbg);color:var(--warn)}
+    .dim{color:var(--muted)}
+    .na{color:var(--muted);font-style:italic}
+    @media(max-width:520px){.page{padding:14px 14px 60px}}
+  </style>
+</head>
+<body>
+
+<div id="loader"><div class="ld-inner"><div class="ld-icon">⚡</div><div class="ld-txt">Loading scorecard data…</div></div></div>
+
+<header class="hdr">
+  <div class="hdr-top">
+    <h1>⚡ Electrical Sales Scorecard</h1>
+    <span class="pill" id="hdr-date">—</span>
+    <span class="live-badge is-loading" id="live-badge">● Loading…</span>
+  </div>
+  <div class="tabs">
+    <button class="tab on"  id="t-ov" onclick="go('ov',this)">Overview</button>
+    <button class="tab"     id="t-gm" onclick="go('gm',this)"><span class="tdot" style="background:var(--griffin)"></span>Griffin M</button>
+    <button class="tab"     id="t-bk" onclick="go('bk',this)"><span class="tdot" style="background:var(--brice)"></span>Brice K</button>
+    <button class="tab hon" id="t-hy" onclick="go('hy',this)">📅 Year History</button>
+  </div>
+</header>
+
+<!-- OVERVIEW -->
+<div class="panel on" id="pov"><div class="page">
+  <div class="hero-row">
+    <div class="hero-card hg">
+      <div class="hero-name"><span class="dot" style="background:var(--griffin)"></span>Griffin M<span class="st-chip">★ ST</span></div>
+      <div class="hero-num" id="h-gm-s">$0</div>
+      <div class="hero-sub">
+        <div class="hero-sub-item"><span class="hero-sub-lbl">Close Rate</span><span class="hero-sub-val" id="h-gm-cr">–</span></div>
+        <div class="hero-sub-item"><span class="hero-sub-lbl">Avg Ticket</span><span class="hero-sub-val" id="h-gm-tk">–</span></div>
+        <div class="hero-sub-item"><span class="hero-sub-lbl">Jobs Done</span><span class="hero-sub-val" id="h-gm-j">–</span></div>
+        <div class="hero-sub-item"><span class="hero-sub-lbl">Opps Closed</span><span class="hero-sub-val" id="h-gm-o">–</span></div>
+      </div>
+      <span class="pace-tag" id="h-gm-tag">–</span>
+    </div>
+    <div class="hero-card hb">
+      <div class="hero-name"><span class="dot" style="background:var(--brice)"></span>Brice K<span class="st-chip">★ ST</span></div>
+      <div class="hero-num" id="h-bk-s">$0</div>
+      <div class="hero-sub">
+        <div class="hero-sub-item"><span class="hero-sub-lbl">Close Rate</span><span class="hero-sub-val" id="h-bk-cr">–</span></div>
+        <div class="hero-sub-item"><span class="hero-sub-lbl">Avg Ticket</span><span class="hero-sub-val" id="h-bk-tk">–</span></div>
+        <div class="hero-sub-item"><span class="hero-sub-lbl">Jobs Done</span><span class="hero-sub-val" id="h-bk-j">–</span></div>
+        <div class="hero-sub-item"><span class="hero-sub-lbl">Opps Closed</span><span class="hero-sub-val" id="h-bk-o">–</span></div>
+      </div>
+      <span class="pace-tag" id="h-bk-tag">–</span>
+    </div>
+  </div>
+  <div class="pace-card">
+    <div class="pace-top"><span class="pace-title" id="pace-title">— Progress</span><span class="pace-frac" id="pace-frac">—</span></div>
+    <div class="pace-bar"><div class="pace-fill" id="pace-fill"></div></div>
+    <div class="pace-bot"><span id="pace-mo-start">—</span><span id="pace-pct">—</span><span id="pace-mo-end">—</span></div>
+  </div>
+  <p class="slabel">This Month vs Last Month vs Projected</p>
+  <p class="note" id="ov-note">Loading…</p>
+  <div class="ov-grid" style="margin-bottom:14px">
+    <div class="tblk">
+      <div class="tblk-hdr"><span class="dot" style="background:var(--griffin)"></span><h2>Griffin M</h2><span class="tinfo">Started Jul 2026</span></div>
+      <table class="cmp-tbl"><thead><tr><th></th><th class="th-c" id="gm-cmp-hd1">Current</th><th>Last Month</th><th class="th-p">Projected ↗</th></tr></thead><tbody id="gm-cmp"></tbody></table>
+    </div>
+    <div class="tblk">
+      <div class="tblk-hdr"><span class="dot" style="background:var(--brice)"></span><h2>Brice K</h2><span class="tinfo">13 months of data</span></div>
+      <table class="cmp-tbl"><thead><tr><th></th><th class="th-c" id="bk-cmp-hd1">Current</th><th>Last Month</th><th class="th-p">Projected ↗</th></tr></thead><tbody id="bk-cmp"></tbody></table>
+    </div>
+  </div>
+  <p class="slabel">Daily Sales</p>
+  <div class="chart-card"><div class="ch ch-220"><canvas id="ov-daily"></canvas></div></div>
+  <p class="slabel">Close Rate Trend</p>
+  <p class="note">Apr–Jul: jobs-based (Excel). Aug 2026: opportunity-based (ServiceTitan ★).</p>
+  <div class="chart-card"><div class="ch ch-200"><canvas id="ov-cr"></canvas></div></div>
+  <p class="slabel">Brice K — Revenue History</p>
+  <div class="chart-card"><div class="ch ch-220"><canvas id="ov-rev"></canvas></div></div>
+</div></div>
+
+<!-- GRIFFIN -->
+<div class="panel" id="pgm"><div class="page" style="--tcolor:var(--griffin)">
+  <p class="slabel">This Month vs Last Month vs Projected</p>
+  <p class="note">★ Current month from ServiceTitan. Last month from Excel. Projection: linear pace.</p>
+  <div class="period-row" id="gm-prow"></div>
+  <p class="slabel">Performance Breakdown — Current Month</p>
+  <div class="chart-2col">
+    <div class="donut-card">
+      <h3>Close Rate</h3>
+      <div class="donut-wrap"><canvas id="gm-donut"></canvas></div>
+      <div class="donut-stats">
+        <div class="ds-row"><span class="ds-lbl">Opportunities Presented</span><span class="ds-val" id="gm-d-opps">—</span></div>
+        <div class="ds-row"><span class="ds-lbl">Opportunities Closed</span><span class="ds-val" id="gm-d-sold">—</span></div>
+        <div class="ds-row"><span class="ds-lbl">Close Rate</span><span class="ds-val" id="gm-d-cr" style="color:var(--griffin)">—</span></div>
+        <div class="ds-row"><span class="ds-lbl">Source</span><span class="ds-val">★ ServiceTitan</span></div>
+      </div>
+    </div>
+    <div class="chart-card" style="margin-bottom:0">
+      <h3>Daily Sales<span class="sub" id="gm-daily-sub">Current Month</span></h3>
+      <div class="ch ch-200"><canvas id="gm-daily"></canvas></div>
+    </div>
+  </div>
+  <p class="slabel">Monthly Revenue Trend</p>
+  <div class="chart-2col">
+    <div class="chart-card" style="margin-bottom:0"><h3>Revenue by Month</h3><div class="ch ch-180"><canvas id="gm-rev"></canvas></div></div>
+    <div class="chart-card" style="margin-bottom:0"><h3>Jobs Completed</h3><div class="ch ch-180"><canvas id="gm-jobs"></canvas></div></div>
+  </div>
+  <div style="height:14px"></div>
+  <p class="slabel">Job Detail — Current Month</p>
+  <div class="tcrd">
+    <div class="tcrd-hdr"><h3>All Jobs</h3><span class="tsub">Excel export</span></div>
+    <div class="twrap"><table>
+      <thead><tr><th>Job #</th><th>Date</th><th class="r">Estimates</th><th class="r">Won Amount</th><th class="r">Price Var</th><th>Status</th></tr></thead>
+      <tbody id="gm-jt"></tbody>
+    </table></div>
+  </div>
+</div></div>
+
+<!-- BRICE -->
+<div class="panel" id="pbk"><div class="page" style="--tcolor:var(--brice)">
+  <p class="slabel">This Month vs Last Month vs Projected</p>
+  <p class="note">★ Current month from ServiceTitan. Last month from Excel. Projection: linear pace.</p>
+  <div class="period-row" id="bk-prow"></div>
+  <p class="slabel">Performance Breakdown — Current Month</p>
+  <div class="chart-2col">
+    <div class="donut-card">
+      <h3>Close Rate</h3>
+      <div class="donut-wrap"><canvas id="bk-donut"></canvas></div>
+      <div class="donut-stats">
+        <div class="ds-row"><span class="ds-lbl">Opportunities Presented</span><span class="ds-val" id="bk-d-opps">—</span></div>
+        <div class="ds-row"><span class="ds-lbl">Opportunities Closed</span><span class="ds-val" id="bk-d-sold">—</span></div>
+        <div class="ds-row"><span class="ds-lbl">Close Rate</span><span class="ds-val" id="bk-d-cr" style="color:var(--brice)">—</span></div>
+        <div class="ds-row"><span class="ds-lbl">Source</span><span class="ds-val">★ ServiceTitan</span></div>
+      </div>
+    </div>
+    <div class="chart-card" style="margin-bottom:0">
+      <h3>Daily Sales<span class="sub">Current Month · Excel</span></h3>
+      <div class="ch ch-200"><canvas id="bk-daily"></canvas></div>
+    </div>
+  </div>
+  <p class="slabel">Close Rate Trend</p>
+  <div class="chart-card"><div class="ch ch-200"><canvas id="bk-cr"></canvas></div></div>
+  <p class="slabel">Job Detail — Current Month</p>
+  <p class="note" id="bk-job-note">Excel export — partial data. ServiceTitan is source of truth for totals above.</p>
+  <div class="tcrd">
+    <div class="tcrd-hdr"><h3>All Jobs</h3><span class="tsub">Excel export</span></div>
+    <div class="twrap"><table>
+      <thead><tr><th>Job #</th><th>Date</th><th class="r">Estimates</th><th class="r">Won Amount</th><th class="r">Price Var</th><th>Status</th></tr></thead>
+      <tbody id="bk-jt"></tbody>
+    </table></div>
+  </div>
+</div></div>
+
+<!-- HISTORY -->
+<div class="panel" id="phy"><div class="page">
+  <p class="slabel">Year at a Glance</p>
+  <div class="chart-2col">
+    <div class="chart-card" style="margin-bottom:0"><h3>Brice K — Monthly Revenue<span class="sub">13 months</span></h3><div class="ch ch-220"><canvas id="hy-rev"></canvas></div></div>
+    <div class="chart-card" style="margin-bottom:0"><h3>Brice K — Jobs Completed<span class="sub">13 months</span></h3><div class="ch ch-220"><canvas id="hy-jobs"></canvas></div></div>
+  </div>
+  <div style="height:14px"></div>
+  <div class="chart-2col">
+    <div class="chart-card" style="margin-bottom:0"><h3>Close Rate Trend</h3><div class="ch ch-200"><canvas id="hy-cr"></canvas></div></div>
+    <div class="chart-card" style="margin-bottom:0"><h3>Average Ticket</h3><div class="ch ch-200"><canvas id="hy-tk"></canvas></div></div>
+  </div>
+  <div style="height:14px"></div>
+  <p class="slabel">Brice K — Monthly Breakdown</p>
+  <p class="note">Close rate available from Apr 2026. ★ = current month (partial). Avg ticket = revenue ÷ jobs.</p>
+  <div class="tcrd"><div class="twrap"><table>
+    <thead><tr><th>Month</th><th class="r">Jobs</th><th class="r">Revenue</th><th class="r">Sold</th><th class="r">Close Rate</th><th class="r">Avg Ticket</th><th class="r">Est/Job</th></tr></thead>
+    <tbody id="bk-htb"></tbody>
+  </table></div></div>
+  <p class="slabel">Griffin M — Monthly Breakdown</p>
+  <p class="note">Griffin started Jul 2026. ★ = current month (partial).</p>
+  <div class="tcrd"><div class="twrap"><table>
+    <thead><tr><th>Month</th><th class="r">Jobs</th><th class="r">Revenue</th><th class="r">Sold</th><th class="r">Close Rate</th><th class="r">Avg Ticket</th><th class="r">Est/Job</th></tr></thead>
+    <tbody id="gm-htb"></tbody>
+  </table></div></div>
+</div></div>
+
+<script>
+/* ══════════════ GOOGLE SHEETS CONFIG ══════════════════════════════════════
+   STEP 1: These Sheet IDs are already set — they point to sheets in your Drive.
+   STEP 2: Open each sheet → File → Share → Publish to web → Sheet1 → CSV → Publish
+   After publishing, refresh this page and the badge will show "● LIVE"
+   ═══════════════════════════════════════════════════════════════════════════ */
+const SHEET_IDS = {
+  data:    '13FU6fp-cdvG0uPbfxFT89li45MMe5fyFQeW0YXzDNME',
+  daily:   '1gkJVkaej-sHq7FhwXQBb6tdVVCnBoS-s4JdyyGVZwW8',
+  history: '1mWyawYMxs6d6aDpAxQ8NXNkjahPZIrzYWcF0_CLQJtk'
+};
+const CSV = id => `https://docs.google.com/spreadsheets/d/${id}/export?format=csv`;
+
+/* ══════════════ FALLBACK (hardcoded) — used until sheets are published ════ */
+const FB = {
+  month:'August 2026', WD_EL:8, WD_TOT:21,
+  CURR:{
+    gm:{sales:19181,jobs:20,sold:10,opps:19,cr:52.6,tk:1918,epj:2.25,pv:'30.3%'},
+    bk:{sales:25866,jobs:16,sold:7, opps:14,cr:50.0,tk:3695,epj:1.53,pv:'0%'}
+  },
+  LAST:{
+    gm:{sales:99,      jobs:3, sold:1, cr:33.3,tk:99,     epj:null},
+    bk:{sales:67297.81,jobs:60,sold:18,cr:30.0,tk:3738.77,epj:1.52}
+  },
+  DAILY_LBL:['08/03','08/04','08/05','08/06','08/07','08/10','08/11','08/12'],
+  GM_DAILY:[4947,0,2838,1585,0,8512.40,0,1299],
+  BK_DAILY:[1908,1692.38,2368,0,0,15650,0,0],
+  BK_HIST:[
+    {l:'Aug 2025',jobs:55,rev:39700,     sold:null,cr:null,tk:null,    epj:1.15},
+    {l:'Sep 2025',jobs:68,rev:55951.25,  sold:null,cr:null,tk:null,    epj:1.31},
+    {l:'Oct 2025',jobs:41,rev:48973,     sold:null,cr:null,tk:null,    epj:1.51},
+    {l:'Nov 2025',jobs:40,rev:46200,     sold:null,cr:null,tk:null,    epj:1.40},
+    {l:'Dec 2025',jobs:59,rev:39425,     sold:null,cr:null,tk:null,    epj:0.98},
+    {l:'Jan 2026',jobs:52,rev:31417.50,  sold:null,cr:null,tk:null,    epj:1.13},
+    {l:'Feb 2026',jobs:42,rev:35675,     sold:null,cr:null,tk:null,    epj:1.55},
+    {l:'Mar 2026',jobs:68,rev:56878.48,  sold:null,cr:null,tk:null,    epj:1.66},
+    {l:'Apr 2026',jobs:50,rev:37188.37,  sold:14,  cr:28.0,tk:2089.45,epj:1.16},
+    {l:'May 2026',jobs:49,rev:90313.35,  sold:16,  cr:32.7,tk:2984.26,epj:1.08},
+    {l:'Jun 2026',jobs:76,rev:64828.49,  sold:27,  cr:35.5,tk:2389.98,epj:1.33},
+    {l:'Jul 2026',jobs:60,rev:67297.81,  sold:18,  cr:30.0,tk:3738.77,epj:1.52},
+    {l:'Aug 2026★',jobs:16,rev:25866,   sold:7,   cr:50.0,tk:3695,   epj:1.53},
+  ],
+  GM_HIST:[
+    {l:'Jul 2026',  jobs:3, rev:99,   sold:1, cr:33.3,tk:33,  epj:null},
+    {l:'Aug 2026★',jobs:20,rev:19181,sold:10,cr:52.6,tk:959, epj:2.25},
+  ]
+};
+
+// Hardcoded job-level detail (not in sheets — update manually each month)
+const GM_JOBS=[
+  {j:'251831',d:'08/05',e:1, s:310,    pv:30.3,ok:true},
+  {j:'249328',d:'08/03',e:4, s:4947,   pv:0,   ok:true},
+  {j:'254439',d:'08/10',e:2, s:6828,   pv:0,   ok:true},
+  {j:'247237',d:'08/05',e:2, s:2098,   pv:0,   ok:true},
+  {j:'251832',d:'08/06',e:1, s:1206,   pv:0,   ok:true},
+  {j:'253845',d:'08/05',e:2, s:430,    pv:0,   ok:true},
+  {j:'253571',d:'08/06',e:3, s:379,    pv:0,   ok:true},
+  {j:'254579',d:'08/10',e:3, s:1375.40,pv:0,   ok:true},
+  {j:'253032',d:'08/12',e:1, s:1299,   pv:0,   ok:true},
+  {j:'254677',d:'08/10',e:1, s:309,    pv:0,   ok:true},
+  {j:'251609',d:'08/04',e:3, s:0,pv:0,ok:false},{j:'243880',d:'08/10',e:2,s:0,pv:0,ok:false},
+  {j:'250728',d:'08/12',e:4, s:0,pv:0,ok:false},{j:'253469',d:'08/05',e:0,s:0,pv:0,ok:false},
+  {j:'253109',d:'08/04',e:3, s:0,pv:0,ok:false},{j:'251091',d:'08/09',e:1,s:0,pv:0,ok:false},
+  {j:'254989',d:'08/11',e:2, s:0,pv:0,ok:false},{j:'253889',d:'08/10',e:0,s:0,pv:0,ok:false},
+  {j:'254020',d:'08/05',e:0, s:0,pv:0,ok:false},{j:'251647',d:'08/04',e:4,s:0,pv:0,ok:false},
+  {j:'254886',d:'Pending',e:0,s:0,pv:0,ok:false},{j:'253705',d:'Pending',e:2,s:0,pv:0,ok:false},
+];
+const BK_JOBS=[
+  {j:'252217',d:'08/10',e:1,s:15650,  pv:0,ok:true},{j:'252455',d:'08/03',e:1,s:1908,   pv:0,ok:true},
+  {j:'249133',d:'08/05',e:1,s:2368,   pv:0,ok:true},{j:'253189',d:'08/04',e:1,s:1692.38,pv:0,ok:true},
+  {j:'254240',d:'08/06',e:0,s:0,pv:0,ok:false},{j:'254626',d:'08/07',e:1,s:0,pv:0,ok:false},
+  {j:'253780',d:'08/07',e:2,s:0,pv:0,ok:false},{j:'250554',d:'08/05',e:1,s:0,pv:0,ok:false},
+  {j:'254809',d:'08/11',e:3,s:0,pv:0,ok:false},{j:'253998',d:'08/11',e:5,s:0,pv:0,ok:false},
+  {j:'254094',d:'08/05',e:1,s:0,pv:0,ok:false},{j:'254155',d:'08/06',e:1,s:0,pv:0,ok:false},
+  {j:'254121',d:'08/07',e:0,s:0,pv:0,ok:false},{j:'253975',d:'08/04',e:3,s:0,pv:0,ok:false},
+  {j:'254839',d:'08/12',e:1,s:0,pv:0,ok:false},{j:'255282',d:'Pending',e:0,s:0,pv:0,ok:false},
+];
+
+/* ══════════════ THEME ══════════════════════════════════════════════════════ */
+const dk=window.matchMedia('(prefers-color-scheme:dark)').matches;
+const C={
+  g:dk?'#3987e5':'#2a78d6', b:dk?'#d95926':'#eb6834', p:dk?'#199e70':'#1baf7a',
+  sf:dk?'#1c1c1b':'#fcfcfb', gr:dk?'#2c2c2a':'#e1e0d9', mu:'#898781',
+  se:dk?'#c3c2b7':'#52514e',
+  bg_g:dk?'rgba(57,135,229,.18)':'rgba(42,120,214,.12)',
+  bg_b:dk?'rgba(217,89,38,.18)':'rgba(235,104,52,.12)',
+  bg_p:dk?'rgba(25,158,112,.18)':'rgba(27,175,122,.12)',
+};
+Chart.defaults.font.family="system-ui,-apple-system,'Segoe UI',sans-serif";
+Chart.defaults.color=C.se;
+const TT={backgroundColor:C.sf,borderColor:dk?'rgba(255,255,255,.12)':'rgba(11,11,11,.12)',borderWidth:1,titleColor:dk?'#fff':'#0b0b0b',bodyColor:C.se,padding:11,cornerRadius:8,boxWidth:10,boxHeight:10,usePointStyle:true};
+const AX={grid:{color:C.gr},border:{color:C.gr},ticks:{color:C.mu,font:{size:11}}};
+const f$ =v=>'$'+v.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const f$0=v=>'$'+Math.round(v).toLocaleString('en-US');
+const fk =v=>'$'+(v>=1000?(v/1000).toFixed(0)+'k':v.toFixed(0));
+const $  =id=>document.getElementById(id);
+
+/* ══════════════ CENTER-TEXT DOUGHNUT PLUGIN ════════════════════════════════ */
+Chart.register({
+  id:'centerText',
+  afterDatasetsDraw(chart){
+    if(chart.config.type!=='doughnut')return;
+    const o=chart.options?.plugins?.centerText;
+    if(!o||!o.pct)return;
+    const{ctx,chartArea:{left,top,width,height}}=chart;
+    const cx=left+width/2, cy=top+height/2;
+    ctx.save();
+    ctx.textAlign='center';
+    const sz=Math.round(width*0.19);
+    ctx.font=`800 ${sz}px system-ui,-apple-system,sans-serif`;
+    ctx.fillStyle=dk?'#fff':'#0b0b0b';
+    ctx.textBaseline='bottom';
+    ctx.fillText(o.pct+'%',cx,cy+5);
+    ctx.font=`${Math.round(width*0.085)}px system-ui,-apple-system,sans-serif`;
+    ctx.fillStyle=C.mu;
+    ctx.textBaseline='top';
+    ctx.fillText(o.sub||'close rate',cx,cy+9);
+    ctx.restore();
+  }
+});
+
+/* ══════════════ TAB SWITCHING ══════════════════════════════════════════════ */
+const TABS=['ov','gm','bk','hy'];
+const TCLS={ov:'on',gm:'gon',bk:'bon',hy:'hon'};
+function go(n,btn){
+  TABS.forEach(t=>{$('p'+t).classList.remove('on');$('t-'+t).className='tab'+(t==='hy'?' hon':'')});
+  $('p'+n).classList.add('on');
+  btn.className='tab '+TCLS[n];
+}
+
+/* ══════════════ COUNT-UP ════════════════════════════════════════════════════ */
+function countUp(el,end,{prefix='',suffix='',dur=1100,round=true}={}){
+  const t0=performance.now();
+  function tick(now){
+    const p=Math.min((now-t0)/dur,1);
+    const ease=1-Math.pow(1-p,3);
+    const v=end*ease;
+    el.textContent=prefix+(round?Math.round(v).toLocaleString('en-US'):v.toFixed(1))+suffix;
+    if(p<1)requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+/* ══════════════ CSV PARSER ══════════════════════════════════════════════════ */
+function parseCSV(text){
+  return text.trim().split('\n').map(row=>{
+    const res=[]; let cur='',inQ=false;
+    for(let i=0;i<row.length;i++){
+      const c=row[i];
+      if(c==='"'){inQ=!inQ;continue;}
+      if(c===','&&!inQ){res.push(cur.trim());cur='';continue;}
+      cur+=c;
+    }
+    res.push(cur.trim());
+    return res;
+  });
+}
+function csvToMap(text){
+  const rows=parseCSV(text).slice(1); // skip header
+  const m={};
+  rows.forEach(([k,v])=>{if(k&&!k.startsWith('---'))m[k.trim()]=v?v.trim():'';});
+  return m;
+}
+const num=(v,fb=0)=>v?parseFloat(v)||fb:fb;
+const int=(v,fb=0)=>v?parseInt(v)||fb:fb;
+
+/* ══════════════ FETCH FROM GOOGLE SHEETS ═══════════════════════════════════ */
+async function fetchSheetData(){
+  const [dR,dayR,hR]=await Promise.all([
+    fetch(CSV(SHEET_IDS.data)),
+    fetch(CSV(SHEET_IDS.daily)),
+    fetch(CSV(SHEET_IDS.history))
+  ]);
+  if(!dR.ok||!dayR.ok||!hR.ok) throw new Error('not ok');
+  const [dT,dayT,hT]=await Promise.all([dR.text(),dayR.text(),hR.text()]);
+  if(dT.includes('<html')||dT.includes('<!DOCTYPE')) throw new Error('not published');
+
+  const D=csvToMap(dT);
+
+  const CURR={
+    gm:{sales:num(D.gm_sales),jobs:int(D.gm_jobs),sold:int(D.gm_sold),opps:int(D.gm_opps),
+        cr:num(D.gm_cr),tk:num(D.gm_tk),epj:D.gm_epj?num(D.gm_epj):null,pv:(D.gm_pv||'0')+'%'},
+    bk:{sales:num(D.bk_sales),jobs:int(D.bk_jobs),sold:int(D.bk_sold),opps:int(D.bk_opps),
+        cr:num(D.bk_cr),tk:num(D.bk_tk),epj:D.bk_epj?num(D.bk_epj):null,pv:(D.bk_pv||'0')+'%'}
+  };
+  const LAST={
+    gm:{sales:num(D.last_gm_sales),jobs:int(D.last_gm_jobs),sold:int(D.last_gm_sold),
+        cr:num(D.last_gm_cr),tk:num(D.last_gm_tk),epj:D.last_gm_epj?num(D.last_gm_epj):null},
+    bk:{sales:num(D.last_bk_sales),jobs:int(D.last_bk_jobs),sold:int(D.last_bk_sold),
+        cr:num(D.last_bk_cr),tk:num(D.last_bk_tk),epj:D.last_bk_epj?num(D.last_bk_epj):null}
+  };
+
+  const dayRows=parseCSV(dayT).slice(1).filter(r=>r[0]);
+  const DAILY_LBL=dayRows.map(r=>r[0]);
+  const GM_DAILY=dayRows.map(r=>num(r[1]));
+  const BK_DAILY=dayRows.map(r=>num(r[2]));
+
+  const histRows=parseCSV(hT).slice(1).filter(r=>r[0]);
+  const BK_HIST=[],GM_HIST=[];
+  histRows.forEach(r=>{
+    const [mo,gmS,gmJ,gmSold,gmCR,bkS,bkJ,bkSold,bkCR]=r;
+    if(!mo)return;
+    const bj=int(bkJ),bs=num(bkS);
+    BK_HIST.push({l:mo,jobs:bj,rev:bs,sold:bkSold?int(bkSold):null,
+                  cr:bkCR?num(bkCR):null,tk:bj>0?Math.round(bs/bj):null,epj:null});
+    if(gmS){
+      const gj=int(gmJ),gs=num(gmS);
+      GM_HIST.push({l:mo,jobs:gj,rev:gs,sold:gmSold?int(gmSold):null,
+                   cr:gmCR?num(gmCR):null,tk:gj>0?Math.round(gs/gj):null,epj:null});
+    }
+  });
+
+  return{month:D.month||FB.month,WD_EL:num(D.wd_elapsed,FB.WD_EL),WD_TOT:num(D.wd_total,FB.WD_TOT),
+         CURR,LAST,DAILY_LBL,GM_DAILY,BK_DAILY,BK_HIST,GM_HIST,live:true};
+}
+
+/* ══════════════ CHART REGISTRY (for destroy/re-render) ═════════════════════ */
+let _charts=[];
+function mkBar(id,labels,datasets,opts={}){
+  const c=new Chart($(id),{type:'bar',data:{labels,datasets},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:opts.legend??{display:false},tooltip:{...TT,...(opts.tt||{})}},
+      scales:{x:{...AX,...(opts.xOpts||{})},y:{...AX,...(opts.yOpts||{})}}}});
+  _charts.push(c);return c;
+}
+function mkLine(id,labels,datasets,opts={}){
+  const c=new Chart($(id),{type:'line',data:{labels,datasets},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:opts.legend??{display:false},tooltip:{...TT,...(opts.tt||{})}},
+      scales:{x:{...AX,...(opts.xOpts||{})},y:{...AX,...(opts.yOpts||{})}}}});
+  _charts.push(c);return c;
+}
+function destroyCharts(){_charts.forEach(c=>c.destroy());_charts=[];}
+
+/* ══════════════ RENDER ══════════════════════════════════════════════════════ */
+function render(D){
+  const {month,WD_EL,WD_TOT,CURR,LAST,DAILY_LBL,GM_DAILY,BK_DAILY,BK_HIST,GM_HIST,live}=D;
+  const PF=WD_TOT/WD_EL;
+  const PROJ={
+    gm:{sales:Math.round(CURR.gm.sales*PF),jobs:Math.round(CURR.gm.jobs*PF),sold:Math.round(CURR.gm.sold*PF),cr:CURR.gm.cr,tk:CURR.gm.tk},
+    bk:{sales:Math.round(CURR.bk.sales*PF),jobs:Math.round(CURR.bk.jobs*PF),sold:Math.round(CURR.bk.sold*PF),cr:CURR.bk.cr,tk:CURR.bk.tk}
+  };
+  const WD_REM=WD_TOT-WD_EL;
+  const pct=(WD_EL/WD_TOT*100).toFixed(1);
+
+  // Header date pill
+  const today=new Date();
+  $('hdr-date').textContent=today.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+
+  // Live badge
+  const badge=$('live-badge');
+  badge.className='live-badge '+(live?'is-live':'is-cached');
+  badge.textContent=live?'● LIVE':'◎ Cached';
+  badge.title=live?'Data loaded from Google Sheets':'Using cached data — publish sheets to enable live updates';
+
+  // Progress bar
+  $('pace-title').textContent=month+' Progress';
+  $('pace-frac').textContent=`${WD_EL} of ${WD_TOT} working days`;
+  $('pace-pct').textContent=`${pct}% complete · ${WD_REM} working days remain`;
+  const [moName]=month.split(' ');
+  $('pace-mo-start').textContent=moName+' 1';
+  $('pace-mo-end').textContent=moName+' 30';
+  requestAnimationFrame(()=>{ $('pace-fill').style.width=pct+'%'; });
+
+  // Overview note
+  $('ov-note').textContent=`★ Current month from ServiceTitan · Last month from Excel export · Projection: linear pace, ${WD_EL} of ${WD_TOT} working days elapsed`;
+
+  // Comparison table headers
+  const hd=DAILY_LBL.length>0?`${DAILY_LBL[0]}–${DAILY_LBL[DAILY_LBL.length-1]} ★`:'Current ★';
+  $('gm-cmp-hd1').textContent=hd;
+  $('bk-cmp-hd1').textContent=hd;
+
+  // Hero stats
+  countUp($('h-gm-s'),CURR.gm.sales,{prefix:'$',dur:1200});
+  $('h-gm-cr').textContent=CURR.gm.cr+'%';
+  $('h-gm-tk').textContent=f$0(CURR.gm.tk);
+  $('h-gm-j').textContent=CURR.gm.jobs;
+  $('h-gm-o').textContent=CURR.gm.sold+' of '+CURR.gm.opps;
+  $('h-gm-tag').textContent='Proj. '+moName+': '+f$0(PROJ.gm.sales);
+
+  countUp($('h-bk-s'),CURR.bk.sales,{prefix:'$',dur:1200});
+  $('h-bk-cr').textContent=CURR.bk.cr+'%';
+  $('h-bk-tk').textContent=f$0(CURR.bk.tk);
+  $('h-bk-j').textContent=CURR.bk.jobs;
+  $('h-bk-o').textContent=CURR.bk.sold+' of '+CURR.bk.opps;
+  const bkDelta=PROJ.bk.sales-LAST.bk.sales;
+  $('h-bk-tag').textContent='Proj. '+moName+': '+f$0(PROJ.bk.sales)+(bkDelta>=0?' ↑':' ↓');
+
+  // Donut stats
+  $('gm-d-opps').textContent=CURR.gm.opps;
+  $('gm-d-sold').textContent=CURR.gm.sold;
+  $('gm-d-cr').textContent=CURR.gm.cr+'%';
+  $('bk-d-opps').textContent=CURR.bk.opps;
+  $('bk-d-sold').textContent=CURR.bk.sold;
+  $('bk-d-cr').textContent=CURR.bk.cr+'%';
+
+  // Comparison tables
+  function buildCmp(id,cur,las,prj){
+    $(id).innerHTML=[
+      ['Total Sales',   f$(cur.sales),   f$0(las.sales),  f$0(prj.sales)],
+      ['Jobs Completed',cur.jobs,         las.jobs,         '~'+prj.jobs],
+      ['Opps / Sold',   cur.sold+' of '+cur.opps+' opps',las.sold+' of '+las.jobs+' jobs','~'+prj.sold],
+      ['Close Rate',    cur.cr+'%',       las.cr+'%',       prj.cr+'%'],
+      ['Avg Ticket',    f$0(cur.tk),      f$0(las.tk),      f$0(prj.tk)],
+      ['Est / Job',     cur.epj??'—',    las.epj??'—',    cur.epj??'—'],
+    ].map(r=>`<tr><td>${r[0]}</td><td class="cv">${r[1]}</td><td class="lv">${r[2]}</td><td class="pv">${r[3]}</td></tr>`).join('');
+  }
+  buildCmp('gm-cmp',CURR.gm,LAST.gm,PROJ.gm);
+  buildCmp('bk-cmp',CURR.bk,LAST.bk,PROJ.bk);
+
+  // Period cards
+  function mr(lbl,val,sub=''){
+    return`<div class="mr"><span class="mr-lbl">${lbl}</span><div class="mr-rhs"><span class="mr-val">${val}</span>${sub?`<span class="mr-sub">${sub}</span>`:''}</div></div>`;
+  }
+  function buildPRow(id,cur,las,prj,gl){
+    $(id).innerHTML=`
+    <div class="pc pc-curr ${gl}">
+      <div class="pc-hdr cur">Current · ★ ServiceTitan</div>
+      ${mr('Total Sales',f$(cur.sales))}${mr('Jobs Completed',cur.jobs)}
+      ${mr('Close Rate',cur.cr+'%',cur.sold+' of '+cur.opps+' opps')}
+      ${mr('Avg Ticket',f$0(cur.tk))}${mr('Est / Job',cur.epj??'—')}${mr('Price Variation',cur.pv)}
+    </div>
+    <div class="pc">
+      <div class="pc-hdr lst">Last Month · Excel</div>
+      ${mr('Total Sales',f$0(las.sales))}${mr('Jobs Completed',las.jobs)}
+      ${mr('Close Rate',las.cr+'%',las.sold+' of '+las.jobs+' jobs')}
+      ${mr('Avg Ticket',f$0(las.tk))}${mr('Est / Job',las.epj??'—')}${mr('Price Variation','—')}
+    </div>
+    <div class="pc pc-proj">
+      <div class="pc-hdr prj">${moName} Projected ↗</div>
+      ${mr('Total Sales',f$0(prj.sales),WD_EL+' of '+WD_TOT+' working days')}
+      ${mr('Jobs Completed','~'+prj.jobs)}${mr('Close Rate',prj.cr+'%','same rate')}
+      ${mr('Avg Ticket',f$0(prj.tk))}${mr('Est / Job',cur.epj??'—')}${mr('Price Variation',cur.pv)}
+    </div>`;
+  }
+  buildPRow('gm-prow',CURR.gm,LAST.gm,PROJ.gm,'glow-g');
+  buildPRow('bk-prow',CURR.bk,LAST.bk,PROJ.bk,'glow-b');
+
+  // Job tables (hardcoded — update manually each month)
+  function buildJobTbl(id,jobs){
+    $(id).innerHTML=jobs.map(j=>`<tr>
+      <td><code style="font-size:.78rem">#${j.j}</code></td>
+      <td>${j.d}</td><td class="r">${j.e||'—'}</td>
+      <td class="r">${j.s>0?f$(j.s):'—'}</td>
+      <td class="r">${j.pv>0?`<span class="badge bw">+${j.pv}%</span>`:'—'}</td>
+      <td>${j.ok?`<span class="badge bg">✓ Sold</span>`:`<span class="dim">No sale</span>`}</td>
+    </tr>`).join('');
+  }
+  buildJobTbl('gm-jt',GM_JOBS);
+  buildJobTbl('bk-jt',BK_JOBS);
+
+  // History tables
+  function buildHtb(id,data){
+    $(id).innerHTML=data.map(r=>`<tr${r.l.includes('★')?' class="curr-row"':''}>
+      <td>${r.l}</td><td class="r">${r.jobs}</td><td class="r">${f$0(r.rev)}</td>
+      <td class="r">${r.sold??'<span class="na">—</span>'}</td>
+      <td class="r">${r.cr!=null?r.cr+'%':'<span class="na">—</span>'}</td>
+      <td class="r">${r.tk!=null?f$0(r.tk):'<span class="na">—</span>'}</td>
+      <td class="r">${r.epj!=null?r.epj.toFixed(2):'<span class="na">—</span>'}</td>
+    </tr>`).join('');
+  }
+  buildHtb('bk-htb',BK_HIST);
+  buildHtb('gm-htb',GM_HIST);
+
+  // Build close rate trend data from history
+  const crRows=BK_HIST.filter(r=>r.cr!=null);
+  const crLbls=crRows.map(r=>r.l.replace('★','').trim());
+  const crBK=crRows.map(r=>r.cr);
+  const crGM=crLbls.map(mo=>{
+    const gRow=GM_HIST.find(r=>r.l.replace('★','').trim()===mo);
+    return gRow&&gRow.cr!=null?gRow.cr:null;
+  });
+
+  // Avg ticket trend
+  const tkRows=BK_HIST.filter(r=>r.tk!=null);
+  const tkLbls=tkRows.map(r=>r.l.replace('★','').trim());
+  const tkBK=tkRows.map(r=>r.tk);
+
+  // ── CHARTS ──
+  destroyCharts();
+
+  const BK_LBL=BK_HIST.map(r=>r.l.replace('★','').trim());
+  const BK_REV=BK_HIST.map(r=>r.rev);
+  const pkRev=Math.max(...BK_REV);
+
+  // Overview daily
+  mkBar('ov-daily',DAILY_LBL,[
+    {label:'Griffin M',data:GM_DAILY,backgroundColor:C.g+'cc',borderColor:C.g,borderWidth:1.5,borderRadius:4,borderSkipped:false},
+    {label:'Brice K',  data:BK_DAILY,backgroundColor:C.b+'cc',borderColor:C.b,borderWidth:1.5,borderRadius:4,borderSkipped:false}
+  ],{
+    legend:{position:'top',labels:{usePointStyle:true,pointStyle:'circle',boxWidth:9,padding:16,font:{size:12}}},
+    tt:{callbacks:{label:ctx=>`  ${ctx.dataset.label}: ${f$(ctx.parsed.y||0)}`}},
+    yOpts:{ticks:{...AX.ticks,callback:fk}}
+  });
+
+  // Overview close rate
+  mkBar('ov-cr',crLbls,[
+    {label:'Griffin M',data:crGM,backgroundColor:C.g+'cc',borderColor:C.g,borderWidth:1.5,borderRadius:4,borderSkipped:false},
+    {label:'Brice K',  data:crBK,backgroundColor:C.b+'cc',borderColor:C.b,borderWidth:1.5,borderRadius:4,borderSkipped:false}
+  ],{
+    legend:{position:'top',labels:{usePointStyle:true,pointStyle:'circle',boxWidth:9,padding:16,font:{size:12}}},
+    tt:{callbacks:{label:ctx=>ctx.parsed.y!=null?`  ${ctx.dataset.label}: ${ctx.parsed.y}%`:'  No data'}},
+    yOpts:{...AX,min:0,max:70,ticks:{...AX.ticks,callback:v=>v+'%'}}
+  });
+
+  // Overview Brice revenue
+  mkBar('ov-rev',BK_LBL,[
+    {label:'Revenue',data:BK_REV,backgroundColor:BK_REV.map(v=>v===pkRev?C.b:C.b+'77'),borderColor:C.b,borderWidth:1.5,borderRadius:4,borderSkipped:false}
+  ],{
+    tt:{callbacks:{label:ctx=>`  Brice K: ${f$(ctx.parsed.y)}`}},
+    xOpts:{...AX,ticks:{...AX.ticks,maxRotation:45}},
+    yOpts:{...AX,ticks:{...AX.ticks,callback:fk}}
+  });
+
+  // Griffin donut
+  const gmCR=CURR.gm.cr;
+  new Chart($('gm-donut'),{type:'doughnut',
+    data:{datasets:[{data:[gmCR,100-gmCR],backgroundColor:[C.g,C.gr+'88'],borderWidth:0}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'72%',
+      animation:{duration:1400,easing:'easeOutQuart'},
+      plugins:{legend:{display:false},tooltip:{enabled:false},centerText:{pct:gmCR.toFixed(1),sub:'close rate'}}
+    }
+  });
+  // (donut not tracked — won't be re-rendered anyway)
+
+  // Griffin daily
+  const gmPk=Math.max(...GM_DAILY);
+  mkBar('gm-daily',DAILY_LBL,[
+    {label:'Sales Won',data:GM_DAILY,backgroundColor:GM_DAILY.map(v=>v===gmPk?C.g:C.g+'88'),borderColor:C.g,borderWidth:1.5,borderRadius:4,borderSkipped:false}
+  ],{tt:{callbacks:{label:ctx=>`  ${f$(ctx.parsed.y||0)}`}},yOpts:{...AX,ticks:{...AX.ticks,callback:fk}}});
+
+  // Griffin monthly rev + jobs
+  const gmRevData=GM_HIST.map(r=>r.rev);
+  const gmJobsData=GM_HIST.map(r=>r.jobs);
+  const gmLbls=GM_HIST.map(r=>r.l.replace('★','').trim());
+  const gmRevColors=gmRevData.map((v,i)=>i===gmRevData.length-1?C.g+'cc':C.g+'77');
+  mkBar('gm-rev',gmLbls,[{label:'Revenue',data:gmRevData,backgroundColor:gmRevColors,borderColor:C.g,borderWidth:1.5,borderRadius:6,borderSkipped:false}],
+    {tt:{callbacks:{label:ctx=>`  Revenue: ${f$(ctx.parsed.y)}`}},yOpts:{...AX,ticks:{...AX.ticks,callback:fk}}});
+  mkBar('gm-jobs',gmLbls,[{label:'Jobs',data:gmJobsData,backgroundColor:gmRevColors,borderColor:C.g,borderWidth:1.5,borderRadius:6,borderSkipped:false}],
+    {tt:{callbacks:{label:ctx=>`  Jobs: ${ctx.parsed.y}`}}});
+
+  // Brice donut
+  const bkCR=CURR.bk.cr;
+  new Chart($('bk-donut'),{type:'doughnut',
+    data:{datasets:[{data:[bkCR,100-bkCR],backgroundColor:[C.b,C.gr+'88'],borderWidth:0}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'72%',
+      animation:{duration:1400,easing:'easeOutQuart'},
+      plugins:{legend:{display:false},tooltip:{enabled:false},centerText:{pct:bkCR.toFixed(1),sub:'close rate'}}
+    }
+  });
+
+  // Brice daily
+  const bkPk=Math.max(...BK_DAILY);
+  mkBar('bk-daily',DAILY_LBL,[
+    {label:'Sales Won',data:BK_DAILY,backgroundColor:BK_DAILY.map(v=>v===bkPk?C.b:C.b+'88'),borderColor:C.b,borderWidth:1.5,borderRadius:4,borderSkipped:false}
+  ],{tt:{callbacks:{label:ctx=>`  ${f$(ctx.parsed.y||0)}`}},yOpts:{...AX,ticks:{...AX.ticks,callback:fk}}});
+
+  // Brice CR line
+  mkLine('bk-cr',crLbls,[{
+    label:'Close Rate',data:crBK,borderColor:C.b,borderWidth:2.5,pointBackgroundColor:C.b,
+    pointRadius:5,pointHoverRadius:7,fill:true,backgroundColor:C.bg_b,tension:.3
+  }],{tt:{callbacks:{label:ctx=>`  Close Rate: ${ctx.parsed.y}%`}},yOpts:{...AX,min:0,max:70,ticks:{...AX.ticks,callback:v=>v+'%'}}});
+
+  // History charts
+  const BK_JD=BK_HIST.map(r=>r.jobs),pkJ=Math.max(...BK_JD);
+  mkBar('hy-rev',BK_LBL,[{label:'Revenue',data:BK_REV,backgroundColor:BK_REV.map(v=>v===pkRev?C.b:C.b+'77'),borderColor:C.b,borderWidth:1.5,borderRadius:4,borderSkipped:false}],
+    {tt:{callbacks:{label:ctx=>`  Revenue: ${f$(ctx.parsed.y)}`}},xOpts:{...AX,ticks:{...AX.ticks,maxRotation:45}},yOpts:{...AX,ticks:{...AX.ticks,callback:fk}}});
+  mkBar('hy-jobs',BK_LBL,[{label:'Jobs',data:BK_JD,backgroundColor:BK_JD.map(v=>v===pkJ?C.b:C.b+'77'),borderColor:C.b,borderWidth:1.5,borderRadius:4,borderSkipped:false}],
+    {tt:{callbacks:{label:ctx=>`  Jobs: ${ctx.parsed.y}`}},xOpts:{...AX,ticks:{...AX.ticks,maxRotation:45}}});
+  mkLine('hy-cr',crLbls,[{label:'Brice K',data:crBK,borderColor:C.b,borderWidth:2.5,pointBackgroundColor:C.b,pointRadius:5,pointHoverRadius:7,fill:true,backgroundColor:C.bg_b,tension:.3}],
+    {tt:{callbacks:{label:ctx=>`  Close Rate: ${ctx.parsed.y}%`}},yOpts:{...AX,min:0,max:70,ticks:{...AX.ticks,callback:v=>v+'%'}}});
+  mkLine('hy-tk',tkLbls,[{label:'Avg Ticket',data:tkBK,borderColor:C.b,borderWidth:2.5,pointBackgroundColor:C.b,pointRadius:5,pointHoverRadius:7,fill:true,backgroundColor:C.bg_b,tension:.3}],
+    {tt:{callbacks:{label:ctx=>`  Avg Ticket: ${f$(ctx.parsed.y)}`}},yOpts:{...AX,ticks:{...AX.ticks,callback:fk}}});
+}
+
+/* ══════════════ INIT ════════════════════════════════════════════════════════ */
+async function init(){
+  let data;
+  try{
+    data=await Promise.race([
+      fetchSheetData(),
+      new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),5000))
+    ]);
+  }catch(e){
+    console.warn('Sheets unavailable, using fallback:',e.message);
+    data={...FB,live:false};
+  }
+  render(data);
+  const loader=$('loader');
+  loader.style.opacity='0';
+  setTimeout(()=>loader.remove(),400);
+}
+init();
+</script>
+</body>
+</html>
